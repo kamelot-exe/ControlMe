@@ -8,6 +8,8 @@ import {
   MaxLength,
   IsIn,
   IsUrl,
+  Max,
+  IsInt,
 } from "class-validator";
 import { BillingPeriod } from "@/shared/types";
 
@@ -21,7 +23,7 @@ export class CreateSubscriptionDto {
   @Min(0.01, { message: "Price must be greater than 0" })
   price: number;
 
-  @IsIn(["MONTHLY", "YEARLY"])
+  @IsIn(["DAILY", "MONTHLY", "YEARLY"])
   billingPeriod: BillingPeriod;
 
   @IsDateString()
@@ -31,6 +33,17 @@ export class CreateSubscriptionDto {
   @MinLength(1)
   @MaxLength(50)
   category: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  serviceGroup?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  needScore?: number;
 
   @IsOptional()
   @IsUrl({}, { message: "Website URL must be a valid URL" })

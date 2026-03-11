@@ -191,3 +191,13 @@ body {
   background: rgba(74, 222, 128, 0.25);
   color: #F9FAFB;
 }
+
+select {
+  color-scheme: dark;
+}
+
+.app-select option,
+.app-select optgroup {
+  background-color: #0b1424;
+  color: #f9fafb;
+}

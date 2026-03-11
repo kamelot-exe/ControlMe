@@ -1,19 +1,20 @@
 "use client";
 
 import React, { useMemo } from "react";
-import { ArrowUpRight, ChartNoAxesCombined, CircleDollarSign, PiggyBank } from "lucide-react";
+import {
+  ArrowUpRight,
+  ChartNoAxesCombined,
+  CircleDollarSign,
+  Layers3,
+} from "lucide-react";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { AppShell } from "@/components/layout/AppShell";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Chart } from "@/components/ui/Chart";
 import { DonutChart } from "@/components/ui/DonutChart";
-import { EmptyState, StatusBanner, Tag } from "@/components/ui";
+import { EmptyState, Tag } from "@/components/ui";
 import { SkeletonCard } from "@/components/ui/Skeleton";
-import {
-  useMonthlyAnalytics,
-  useSavingsSummary,
-  useSpendingHistory,
-} from "@/hooks/use-analytics";
+import { useMonthlyAnalytics, useSpendingHistory } from "@/hooks/use-analytics";
 import { useMe } from "@/hooks/use-auth";
 import { formatCurrency } from "@/lib/utils/format";
 import type { Currency } from "@/shared/types";
@@ -31,7 +32,7 @@ const COLORS = [
 
 function StatCardSkeleton() {
   return (
-    <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.88),rgba(6,11,22,0.94))] p-6 animate-pulse">
+    <div className="animate-pulse rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.88),rgba(6,11,22,0.94))] p-6">
       <div className="mb-4 h-3 w-24 rounded-full bg-white/10" />
       <div className="mb-3 h-9 w-32 rounded-full bg-white/10" />
       <div className="h-3 w-16 rounded-full bg-white/10" />
@@ -42,14 +43,18 @@ function StatCardSkeleton() {
 export default function AnalyticsPage() {
   const monthlyQuery = useMonthlyAnalytics();
   const historyQuery = useSpendingHistory();
-  const savingsQuery = useSavingsSummary();
   const meQuery = useMe();
 
   const analytics = monthlyQuery.data?.data;
-  const savings = savingsQuery.data?.data;
-  const spendingHistory = useMemo(() => historyQuery.data?.data ?? [], [historyQuery.data]);
+  const spendingHistory = useMemo(
+    () => historyQuery.data?.data ?? [],
+    [historyQuery.data],
+  );
   const currency = (meQuery.data?.data?.currency ?? "USD") as Currency;
-  const categoryBreakdown = useMemo(() => analytics?.categoryBreakdown ?? [], [analytics]);
+  const categoryBreakdown = useMemo(
+    () => analytics?.categoryBreakdown ?? [],
+    [analytics],
+  );
 
   const categoryChartData = useMemo(
     () =>
@@ -58,7 +63,7 @@ export default function AnalyticsPage() {
         value: item.total,
         color: COLORS[index % COLORS.length],
       })),
-    [categoryBreakdown]
+    [categoryBreakdown],
   );
 
   const historyChartData = useMemo(
@@ -67,22 +72,17 @@ export default function AnalyticsPage() {
         name: item.month,
         value: item.total,
       })),
-    [spendingHistory]
+    [spendingHistory],
   );
 
   const largestCategory = categoryBreakdown[0];
-  const savingsRatio =
-    analytics && savings && analytics.totalMonthlyCost > 0
-      ? (savings.monthlySavings / analytics.totalMonthlyCost) * 100
-      : 0;
-
   const averagePerActive =
     analytics && analytics.activeSubscriptions > 0
       ? analytics.totalMonthlyCost / analytics.activeSubscriptions
       : 0;
+  const categoryCount = categoryBreakdown.length;
 
-  const isLoading =
-    monthlyQuery.isLoading || historyQuery.isLoading || savingsQuery.isLoading;
+  const isLoading = monthlyQuery.isLoading || historyQuery.isLoading;
 
   if (isLoading) {
     return (
@@ -123,33 +123,41 @@ export default function AnalyticsPage() {
                       Understand what is driving your recurring spend.
                     </h1>
                     <p className="max-w-2xl text-base leading-relaxed text-[#A5B4C3] md:text-lg">
-                      Analytics should help you decide what to keep, what to downgrade, and what
-                      no longer deserves space in your monthly budget.
+                      Analytics should help you judge cost concentration, billing weight,
+                      and whether recurring spend is drifting upward.
                     </p>
                   </div>
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-2">
                   <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <p className="text-xs uppercase tracking-[0.24em] text-[#6B7280]">Monthly spend</p>
+                    <p className="text-xs uppercase tracking-[0.24em] text-[#6B7280]">
+                      Monthly spend
+                    </p>
                     <p className="mt-3 text-2xl font-semibold text-[#4ADE80]">
                       {formatCurrency(analytics?.totalMonthlyCost ?? 0, currency)}
                     </p>
                   </div>
                   <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <p className="text-xs uppercase tracking-[0.24em] text-[#6B7280]">Yearly spend</p>
+                    <p className="text-xs uppercase tracking-[0.24em] text-[#6B7280]">
+                      Yearly spend
+                    </p>
                     <p className="mt-3 text-2xl font-semibold text-[#F9FAFB]">
                       {formatCurrency(analytics?.totalYearlyCost ?? 0, currency)}
                     </p>
                   </div>
                   <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <p className="text-xs uppercase tracking-[0.24em] text-[#6B7280]">Active subscriptions</p>
+                    <p className="text-xs uppercase tracking-[0.24em] text-[#6B7280]">
+                      Active subscriptions
+                    </p>
                     <p className="mt-3 text-2xl font-semibold text-[#7DD3FC]">
                       {analytics?.activeSubscriptions ?? 0}
                     </p>
                   </div>
                   <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <p className="text-xs uppercase tracking-[0.24em] text-[#6B7280]">Avg per active</p>
+                    <p className="text-xs uppercase tracking-[0.24em] text-[#6B7280]">
+                      Avg per active
+                    </p>
                     <p className="mt-3 text-2xl font-semibold text-[#F9FAFB]">
                       {formatCurrency(averagePerActive, currency)}
                     </p>
@@ -203,30 +211,21 @@ export default function AnalyticsPage() {
                 <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.88),rgba(6,11,22,0.94))] p-6">
                   <div className="mb-4 flex items-center gap-3">
                     <div className="rounded-2xl border border-white/10 bg-white/5 p-2.5 text-[#F59E0B]">
-                      <PiggyBank className="h-5 w-5" />
+                      <Layers3 className="h-5 w-5" />
                     </div>
                     <div>
-                      <p className="text-sm font-medium text-[#F9FAFB]">Savings potential</p>
-                      <p className="text-sm text-[#94A3B8]">Unused services worth revisiting.</p>
+                      <p className="text-sm font-medium text-[#F9FAFB]">Category spread</p>
+                      <p className="text-sm text-[#94A3B8]">How diversified recurring spend is.</p>
                     </div>
                   </div>
-                  <p className="text-2xl font-semibold text-[#F9FAFB]">
-                    {formatCurrency(savings?.monthlySavings ?? 0, currency)}
-                  </p>
+                  <p className="text-2xl font-semibold text-[#F9FAFB]">{categoryCount}</p>
                   <p className="mt-2 text-sm text-[#94A3B8]">
-                    {savings?.unusedCount
-                      ? `${savings.unusedCount} subscriptions currently look unused.`
-                      : "No unused subscriptions detected right now."}
+                    {categoryCount > 0
+                      ? `${categoryCount} active categories currently shape your monthly spend.`
+                      : "Category spread will appear after your first subscriptions are added."}
                   </p>
                 </div>
               </div>
-            ) : null}
-
-            {savings && savings.unusedCount > 0 ? (
-              <StatusBanner tone="error" title="Potential savings">
-                Unused subscriptions account for {formatCurrency(savings.monthlySavings, currency)} per
-                month, roughly {savingsRatio.toFixed(0)}% of total recurring spend.
-              </StatusBanner>
             ) : null}
 
             <div className="grid gap-8 lg:grid-cols-2">
@@ -242,12 +241,7 @@ export default function AnalyticsPage() {
                       description="As you keep subscriptions active over time, ControlMe will show whether recurring spend is drifting upward or staying stable."
                     />
                   ) : (
-                    <Chart
-                      data={historyChartData}
-                      dataKey="value"
-                      type="area"
-                      color="#4ADE80"
-                    />
+                    <Chart data={historyChartData} dataKey="value" type="area" color="#4ADE80" />
                   )}
                 </CardContent>
               </Card>

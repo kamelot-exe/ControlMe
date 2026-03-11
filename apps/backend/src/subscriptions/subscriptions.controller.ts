@@ -66,9 +66,4 @@ export class SubscriptionsController {
   remove(@Param("id") id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.subscriptionsService.remove(id, user.id);
   }
-
-  @Post(":id/confirm-use")
-  confirmUse(@Param("id") id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.subscriptionsService.confirmUse(id, user.id);
-  }
 }

@@ -68,19 +68,3 @@ export function useDeleteSubscription() {
   });
 }
 
-export function useConfirmSubscriptionUse() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (id: string) =>
-      apiClient.post<{ message: string }>(`/subscriptions/${id}/confirm-use`, {}),
-    onSuccess: (_, id) => {
-      queryClient.invalidateQueries({ queryKey: ["subscriptions"] });
-      queryClient.invalidateQueries({ queryKey: ["subscriptions", id] });
-    },
-  });
-}
-
-// Alias for backwards compatibility (useConfirmSubscriptionUse is the canonical name)
-export const useConfirmUse = useConfirmSubscriptionUse;
-

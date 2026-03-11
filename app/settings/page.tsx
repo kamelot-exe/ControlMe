@@ -589,7 +589,7 @@ export default function SettingsPage() {
                       <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 p-4">
                         <FieldLabel
                           title="Smart alerts"
-                          hint="Highlight duplicates, price changes, and subscriptions that look unused."
+                          hint="Highlight duplicates, price changes, and upcoming billing events."
                         />
                         <button
                           type="button"
@@ -808,7 +808,7 @@ export default function SettingsPage() {
                           <select
                             value={currencyInput}
                             onChange={(event) => setCurrencyInput(event.target.value as Currency)}
-                            className="min-w-0 flex-1 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-[#F9FAFB] outline-none transition focus:border-[#4ADE80]/35"
+                            className="app-select min-w-0 flex-1 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-[#F9FAFB] outline-none transition focus:border-[#4ADE80]/35"
                           >
                             {CURRENCIES.map((value) => (
                               <option key={value} value={value}>

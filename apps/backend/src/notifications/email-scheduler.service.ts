@@ -1,4 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { Cron } from "@nestjs/schedule";
 import { PrismaService } from "../prisma/prisma.service";
 import { EmailService } from "./email.service";
@@ -9,17 +10,19 @@ export class EmailSchedulerService {
 
   constructor(
     private prisma: PrismaService,
+    private config: ConfigService,
     private email: EmailService,
   ) {}
 
   /**
-   * Runs every day at 08:00 UTC.
-   * Finds users whose subscriptions are charging within their prechargeReminderDays
-   * window and sends them a charge-reminder email.
+   * Runs on a configurable cron schedule and sends precharge reminder emails.
    */
-  @Cron("0 8 * * *", { name: "daily-charge-reminders", timeZone: "UTC" })
+  @Cron(process.env.EMAIL_REMINDER_CRON ?? "0 8 * * *", {
+    name: "daily-charge-reminders",
+    timeZone: process.env.EMAIL_REMINDER_TIMEZONE ?? "UTC",
+  })
   async sendDailyChargeReminders(): Promise<void> {
-    this.logger.log("Running daily charge-reminder job…");
+    this.logger.log("Running daily charge-reminder job...");
 
     const today = new Date();
     const startOfToday = new Date(
@@ -28,7 +31,6 @@ export class EmailSchedulerService {
       today.getDate(),
     );
 
-    // Pull every user that has notification settings + an email
     const usersWithSettings = await this.prisma.notificationSettings.findMany({
       where: { smartAlertsEnabled: true },
       include: { user: true },
@@ -73,6 +75,7 @@ export class EmailSchedulerService {
         const daysUntil = Math.floor(
           (chargeDate.getTime() - startOfToday.getTime()) / 86_400_000,
         );
+
         return {
           name: sub.name,
           price: Number(sub.price),
@@ -81,7 +84,14 @@ export class EmailSchedulerService {
         };
       });
 
-      const html = EmailService.buildChargeReminderHtml("", items);
+      const userName = user.email.split("@")[0];
+      const appUrl =
+        this.config.get<string>("APP_URL") ?? "http://localhost:3000";
+      const html = EmailService.buildChargeReminderHtml(
+        userName,
+        items,
+        appUrl,
+      );
 
       await this.email.send({
         to: user.email,

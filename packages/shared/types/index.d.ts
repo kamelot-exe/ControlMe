@@ -9,7 +9,7 @@ export interface PaginatedResponse<T> {
     page: number;
     pageSize: number;
 }
-export type BillingPeriod = "MONTHLY" | "YEARLY";
+export type BillingPeriod = "DAILY" | "MONTHLY" | "YEARLY";
 export type Currency = "USD" | "EUR" | "GBP" | "RUB" | "JPY";
 export interface User {
     id: string;
@@ -26,10 +26,16 @@ export interface Subscription {
     billingPeriod: BillingPeriod;
     nextChargeDate: Date | string;
     category: string;
+    serviceGroup?: string | null;
+    needScore: number;
+    websiteUrl?: string | null;
     notes?: string;
     isActive: boolean;
     createdAt?: Date | string;
     updatedAt?: Date | string;
+    usage?: {
+        lastConfirmedUseAt: Date | string;
+    } | null;
 }
 export interface SubscriptionUsage {
     id: string;
@@ -48,6 +54,9 @@ export interface CreateSubscriptionDto {
     billingPeriod: BillingPeriod;
     nextChargeDate: Date | string;
     category: string;
+    serviceGroup?: string;
+    needScore?: number;
+    websiteUrl?: string;
     notes?: string;
 }
 export interface UpdateSubscriptionDto {
@@ -56,6 +65,9 @@ export interface UpdateSubscriptionDto {
     billingPeriod?: BillingPeriod;
     nextChargeDate?: Date | string;
     category?: string;
+    serviceGroup?: string;
+    needScore?: number;
+    websiteUrl?: string;
     notes?: string;
     isActive?: boolean;
 }

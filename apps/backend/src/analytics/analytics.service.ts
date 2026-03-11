@@ -19,14 +19,18 @@ export class AnalyticsService {
 
     subscriptions.forEach((sub) => {
       const monthlyPrice =
-        sub.billingPeriod === "MONTHLY"
-          ? Number(sub.price)
-          : Number(sub.price) / 12;
+        sub.billingPeriod === "DAILY"
+          ? Number(sub.price) * 30
+          : sub.billingPeriod === "MONTHLY"
+            ? Number(sub.price)
+            : Number(sub.price) / 12;
 
       const yearlyPrice =
-        sub.billingPeriod === "YEARLY"
-          ? Number(sub.price)
-          : Number(sub.price) * 12;
+        sub.billingPeriod === "DAILY"
+          ? Number(sub.price) * 365
+          : sub.billingPeriod === "YEARLY"
+            ? Number(sub.price)
+            : Number(sub.price) * 12;
 
       totalMonthlyCost += monthlyPrice;
       totalYearlyCost += yearlyPrice;
@@ -80,9 +84,11 @@ export class AnalyticsService {
 
       if (isUnused) {
         const monthlyPrice =
-          sub.billingPeriod === "MONTHLY"
-            ? Number(sub.price)
-            : Number(sub.price) / 12;
+          sub.billingPeriod === "DAILY"
+            ? Number(sub.price) * 30
+            : sub.billingPeriod === "MONTHLY"
+              ? Number(sub.price)
+              : Number(sub.price) / 12;
         monthlySavings += monthlyPrice;
         unusedCount++;
       }
@@ -124,9 +130,11 @@ export class AnalyticsService {
       let total = 0;
       for (const sub of subscriptions) {
         const monthlyPrice =
-          sub.billingPeriod === "MONTHLY"
-            ? Number(sub.price)
-            : Number(sub.price) / 12;
+          sub.billingPeriod === "DAILY"
+            ? Number(sub.price) * 30
+            : sub.billingPeriod === "MONTHLY"
+              ? Number(sub.price)
+              : Number(sub.price) / 12;
         total += monthlyPrice;
       }
 

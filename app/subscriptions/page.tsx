@@ -13,21 +13,13 @@ import { SkeletonCard } from "@/components/ui/Skeleton";
 import { useMe } from "@/hooks/use-auth";
 import { useSubscriptions } from "@/hooks/use-subscriptions";
 import { useApiError } from "@/hooks/use-api-error";
-import { formatCurrency, getDaysUntil } from "@/lib/utils/format";
+import {
+  formatBillingPeriod,
+  formatCurrency,
+  getDaysUntil,
+  toMonthlyEquivalent,
+} from "@/lib/utils/format";
 import type { Subscription } from "@/shared/types";
-
-const CATEGORIES = [
-  "Streaming",
-  "Software",
-  "Gym",
-  "Music",
-  "Cloud",
-  "News",
-  "Education",
-  "Gaming",
-  "Finance",
-  "Other",
-];
 
 export default function SubscriptionsPage() {
   const subscriptionsQuery = useSubscriptions();
@@ -35,9 +27,9 @@ export default function SubscriptionsPage() {
   const apiError = useApiError(subscriptionsQuery);
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("");
+  const [groupFilter, setGroupFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
-  const [billingFilter, setBillingFilter] = useState<"all" | "MONTHLY" | "YEARLY">("all");
+  const [billingFilter, setBillingFilter] = useState<"all" | "DAILY" | "MONTHLY" | "YEARLY">("all");
   const [editSubscription, setEditSubscription] = useState<Subscription | null>(null);
 
   const subscriptions = useMemo(
@@ -55,7 +47,7 @@ export default function SubscriptionsPage() {
       ) {
         return false;
       }
-      if (categoryFilter && subscription.category !== categoryFilter) {
+      if (groupFilter && (subscription.serviceGroup ?? "") !== groupFilter) {
         return false;
       }
       if (statusFilter === "active" && !subscription.isActive) {
@@ -69,14 +61,19 @@ export default function SubscriptionsPage() {
       }
       return true;
     });
-  }, [billingFilter, categoryFilter, searchQuery, statusFilter, subscriptions]);
+  }, [billingFilter, groupFilter, searchQuery, statusFilter, subscriptions]);
+
+  const groupOptions = useMemo(
+    () =>
+      [...new Set(subscriptions.map((subscription) => subscription.serviceGroup).filter(Boolean))]
+        .sort() as string[],
+    [subscriptions]
+  );
 
   const totalMonthly = useMemo(() => {
     return filteredSubscriptions.reduce((sum, subscription) => {
       const monthlyEquivalent =
-        subscription.billingPeriod === "MONTHLY"
-          ? subscription.price
-          : subscription.price / 12;
+        toMonthlyEquivalent(subscription.price, subscription.billingPeriod);
       return sum + monthlyEquivalent;
     }, 0);
   }, [filteredSubscriptions]);
@@ -101,8 +98,8 @@ export default function SubscriptionsPage() {
 
   const mostExpensive = useMemo(() => {
     return [...subscriptions].sort((a, b) => {
-      const aMonthly = a.billingPeriod === "MONTHLY" ? a.price : a.price / 12;
-      const bMonthly = b.billingPeriod === "MONTHLY" ? b.price : b.price / 12;
+      const bMonthly = toMonthlyEquivalent(b.price, b.billingPeriod);
+      const aMonthly = toMonthlyEquivalent(a.price, a.billingPeriod);
       return bMonthly - aMonthly;
     })[0];
   }, [subscriptions]);
@@ -114,7 +111,7 @@ export default function SubscriptionsPage() {
           <div className="p-8 md:p-10 lg:p-12">
             <div className="max-w-7xl space-y-8">
               <SkeletonCard />
-              <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-2">
                 <SkeletonCard />
                 <SkeletonCard />
                 <SkeletonCard />
@@ -203,7 +200,7 @@ export default function SubscriptionsPage() {
                 Filters
               </div>
 
-              <div className="grid gap-3 xl:grid-cols-[1.4fr_0.8fr_0.8fr_0.9fr]">
+              <div className="grid gap-3 xl:grid-cols-[1.4fr_0.9fr_0.8fr_1fr]">
                 <div className="relative">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#6B7280]" />
                   <input
@@ -216,14 +213,14 @@ export default function SubscriptionsPage() {
                 </div>
 
                 <select
-                  value={categoryFilter}
-                  onChange={(event) => setCategoryFilter(event.target.value)}
-                  className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-[#F9FAFB] outline-none transition focus:border-[#4ADE80]/35"
+                  value={groupFilter}
+                  onChange={(event) => setGroupFilter(event.target.value)}
+                  className="app-select rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-[#F9FAFB] outline-none transition focus:border-[#4ADE80]/35"
                 >
-                  <option value="">All categories</option>
-                  {CATEGORIES.map((category) => (
-                    <option key={category} value={category}>
-                      {category}
+                  <option value="">All groups</option>
+                  {groupOptions.map((group) => (
+                    <option key={group} value={group}>
+                      {group}
                     </option>
                   ))}
                 </select>
@@ -246,7 +243,7 @@ export default function SubscriptionsPage() {
                 </div>
 
                 <div className="flex rounded-2xl border border-white/10 bg-white/5 p-1">
-                  {(["all", "MONTHLY", "YEARLY"] as const).map((value) => (
+                  {(["all", "DAILY", "MONTHLY", "YEARLY"] as const).map((value) => (
                     <button
                       key={value}
                       type="button"
@@ -257,7 +254,7 @@ export default function SubscriptionsPage() {
                           : "text-[#9CA3AF] hover:text-[#F9FAFB]"
                       }`}
                     >
-                      {value === "all" ? "All" : value === "MONTHLY" ? "Monthly" : "Yearly"}
+                      {value === "all" ? "All" : formatBillingPeriod(value)}
                     </button>
                   ))}
                 </div>
@@ -270,7 +267,7 @@ export default function SubscriptionsPage() {
                 {formatCurrency(
                   mostExpensive.billingPeriod === "MONTHLY"
                     ? mostExpensive.price
-                    : mostExpensive.price / 12,
+                    : toMonthlyEquivalent(mostExpensive.price, mostExpensive.billingPeriod),
                   currency
                 )}
                 .
@@ -303,7 +300,7 @@ export default function SubscriptionsPage() {
                 />
               </div>
             ) : (
-              <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="grid gap-6 lg:grid-cols-2">
                 {filteredSubscriptions.map((subscription, index) => (
                   <div
                     key={subscription.id}
@@ -312,6 +309,7 @@ export default function SubscriptionsPage() {
                   >
                     <SubscriptionCard
                       subscription={subscription}
+                      allSubscriptions={subscriptions}
                       currency={currency}
                       onEdit={(nextSubscription) => setEditSubscription(nextSubscription)}
                     />

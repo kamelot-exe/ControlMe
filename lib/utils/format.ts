@@ -1,4 +1,4 @@
-import type { Currency } from "@/shared/types";
+import type { BillingPeriod, Currency } from "@/shared/types";
 
 export function formatCurrency(amount: number, currency: Currency = "USD"): string {
   return new Intl.NumberFormat("en-US", {
@@ -22,6 +22,24 @@ export function formatDateShort(date: Date | string): string {
     month: "short",
     day: "numeric",
   }).format(d);
+}
+
+export function formatBillingPeriod(period: BillingPeriod): string {
+  if (period === "DAILY") return "Daily";
+  if (period === "YEARLY") return "Yearly";
+  return "Monthly";
+}
+
+export function toMonthlyEquivalent(amount: number, period: BillingPeriod): number {
+  if (period === "DAILY") return amount * 30;
+  if (period === "YEARLY") return amount / 12;
+  return amount;
+}
+
+export function toYearlyEquivalent(amount: number, period: BillingPeriod): number {
+  if (period === "DAILY") return amount * 365;
+  if (period === "MONTHLY") return amount * 12;
+  return amount;
 }
 
 export function getDaysUntil(date: Date | string): number {

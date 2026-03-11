@@ -4,19 +4,13 @@ import { useEffect, useState } from "react";
 import { Save, Trash2, X } from "lucide-react";
 import type { Subscription } from "@/shared/types";
 import { useDeleteSubscription, useUpdateSubscription } from "@/hooks/use-subscriptions";
-
-const CATEGORIES = [
-  "Streaming",
-  "Software",
-  "Gym",
-  "Music",
-  "Cloud",
-  "News",
-  "Education",
-  "Gaming",
-  "Finance",
-  "Other",
-];
+import { NeedScoreSlider } from "./NeedScoreSlider";
+import { SubscriptionNamePicker } from "./SubscriptionNamePicker";
+import {
+  DEFAULT_SUBSCRIPTION_CATEGORY,
+  SERVICE_GROUP_OPTIONS,
+} from "./subscription-catalog";
+import { formatBillingPeriod } from "@/lib/utils/format";
 
 interface SubscriptionDrawerProps {
   subscription: Subscription | null;
@@ -34,8 +28,10 @@ export function SubscriptionDrawer({
   const [form, setForm] = useState({
     name: "",
     price: 0,
-    category: "Other",
-    billingPeriod: "MONTHLY" as "MONTHLY" | "YEARLY",
+    category: DEFAULT_SUBSCRIPTION_CATEGORY,
+    serviceGroup: "",
+    needScore: 70,
+    billingPeriod: "MONTHLY" as "DAILY" | "MONTHLY" | "YEARLY",
     nextChargeDate: "",
     isActive: true,
     websiteUrl: "",
@@ -48,7 +44,9 @@ export function SubscriptionDrawer({
     setForm({
       name: subscription.name ?? "",
       price: subscription.price ?? 0,
-      category: subscription.category ?? "Other",
+      category: subscription.category ?? DEFAULT_SUBSCRIPTION_CATEGORY,
+      serviceGroup: subscription.serviceGroup ?? "",
+      needScore: subscription.needScore ?? 70,
       billingPeriod: subscription.billingPeriod ?? "MONTHLY",
       nextChargeDate: subscription.nextChargeDate
         ? new Date(subscription.nextChargeDate).toISOString().slice(0, 10)
@@ -72,6 +70,8 @@ export function SubscriptionDrawer({
           name: form.name,
           price: Number(form.price),
           category: form.category,
+          serviceGroup: form.serviceGroup || undefined,
+          needScore: form.needScore,
           billingPeriod: form.billingPeriod,
           nextChargeDate: form.nextChargeDate
             ? new Date(form.nextChargeDate).toISOString()
@@ -128,18 +128,11 @@ export function SubscriptionDrawer({
         </div>
 
         <div className="flex-1 space-y-5 overflow-y-auto px-6 py-6">
-          <div>
-            <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-[#9CA3AF]">
-              Name
-            </label>
-            <input
-              type="text"
-              value={form.name}
-              onChange={(event) => setForm((value) => ({ ...value, name: event.target.value }))}
-              className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-[#F9FAFB] placeholder:text-[#6B7280] transition-all duration-150 focus:border-[#4ADE80]/50 focus:outline-none"
-              placeholder="Netflix, Spotify..."
-            />
-          </div>
+          <SubscriptionNamePicker
+            value={form.name}
+            onChange={(name) => setForm((value) => ({ ...value, name }))}
+            placeholder="Pick a service or type your own"
+          />
 
           <div className="flex gap-3">
             <div className="flex-1">
@@ -169,33 +162,19 @@ export function SubscriptionDrawer({
                 value={form.billingPeriod}
                 onChange={(event) =>
                   setForm((value) => ({
-                    ...value,
-                    billingPeriod: event.target.value as "MONTHLY" | "YEARLY",
+                  ...value,
+                    billingPeriod: event.target.value as "DAILY" | "MONTHLY" | "YEARLY",
                   }))
                 }
-                className="w-full cursor-pointer rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-[#F9FAFB] transition-all duration-150 focus:border-[#4ADE80]/50 focus:outline-none"
+                className="app-select w-full cursor-pointer rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-[#F9FAFB] transition-all duration-150 focus:border-[#4ADE80]/50 focus:outline-none"
               >
-                <option value="MONTHLY">Monthly</option>
-                <option value="YEARLY">Yearly</option>
+                {(["DAILY", "MONTHLY", "YEARLY"] as const).map((period) => (
+                  <option key={period} value={period}>
+                    {formatBillingPeriod(period)}
+                  </option>
+                ))}
               </select>
             </div>
-          </div>
-
-          <div>
-            <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-[#9CA3AF]">
-              Category
-            </label>
-            <select
-              value={form.category}
-              onChange={(event) => setForm((value) => ({ ...value, category: event.target.value }))}
-              className="w-full cursor-pointer rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-[#F9FAFB] transition-all duration-150 focus:border-[#4ADE80]/50 focus:outline-none"
-            >
-              {CATEGORIES.map((category) => (
-                <option key={category} value={category}>
-                  {category}
-                </option>
-              ))}
-            </select>
           </div>
 
           <div>
@@ -212,6 +191,33 @@ export function SubscriptionDrawer({
               style={{ colorScheme: "dark" }}
             />
           </div>
+
+          <div>
+            <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-[#9CA3AF]">
+              Group
+            </label>
+            <select
+              value={form.serviceGroup}
+              onChange={(event) =>
+                setForm((value) => ({ ...value, serviceGroup: event.target.value }))
+              }
+              className="app-select w-full cursor-pointer rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-[#F9FAFB] transition-all duration-150 focus:border-[#4ADE80]/50 focus:outline-none"
+            >
+              <option value="">No group yet</option>
+              {SERVICE_GROUP_OPTIONS.map((group) => (
+                <option key={group} value={group}>
+                  {group}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <NeedScoreSlider
+            value={form.needScore}
+            onChange={(needScore) =>
+              setForm((value) => ({ ...value, needScore }))
+            }
+          />
 
           <div>
             <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-[#9CA3AF]">

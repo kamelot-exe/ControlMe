@@ -1,0 +1,3 @@
+ALTER TABLE "subscriptions"
+  ADD COLUMN IF NOT EXISTS "service_group" TEXT,
+  ADD COLUMN IF NOT EXISTS "need_score" INTEGER NOT NULL DEFAULT 70;

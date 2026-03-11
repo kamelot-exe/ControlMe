@@ -3,9 +3,15 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, CheckCircle2, Globe, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, Globe, Pencil, Trash2 } from "lucide-react";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { AppShell } from "@/components/layout/AppShell";
+import { NeedScoreSlider } from "@/components/subscriptions/NeedScoreSlider";
+import { SubscriptionNamePicker } from "@/components/subscriptions/SubscriptionNamePicker";
+import {
+  DEFAULT_SUBSCRIPTION_CATEGORY,
+  SERVICE_GROUP_OPTIONS,
+} from "@/components/subscriptions/subscription-catalog";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { ErrorState, StatusBanner, Tag } from "@/components/ui";
@@ -13,13 +19,21 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { SkeletonCard } from "@/components/ui/Skeleton";
 import { useMe } from "@/hooks/use-auth";
 import {
-  useConfirmSubscriptionUse,
   useDeleteSubscription,
+  useSubscriptions,
   useSubscription,
   useUpdateSubscription,
 } from "@/hooks/use-subscriptions";
+import { evaluateSubscriptionReview } from "@/lib/subscriptions/review";
 import { cn } from "@/lib/utils";
-import { formatCurrency, formatDate, getDaysUntil } from "@/lib/utils/format";
+import {
+  formatBillingPeriod,
+  formatCurrency,
+  formatDate,
+  getDaysUntil,
+  toMonthlyEquivalent,
+  toYearlyEquivalent,
+} from "@/lib/utils/format";
 import type { BillingPeriod, Currency, UpdateSubscriptionDto } from "@/shared/types";
 
 const categoryBadges: Record<string, string> = {
@@ -33,6 +47,8 @@ const categoryBadges: Record<string, string> = {
   Gaming: "GME",
   Finance: "FIN",
   Other: "SUB",
+  General: "SUB",
+  Subscription: "SUB",
 };
 
 export default function SubscriptionDetailPage({
@@ -42,10 +58,10 @@ export default function SubscriptionDetailPage({
 }) {
   const router = useRouter();
   const subscriptionQuery = useSubscription(params.id);
+  const subscriptionsQuery = useSubscriptions();
   const meQuery = useMe();
   const updateMutation = useUpdateSubscription();
   const deleteMutation = useDeleteSubscription();
-  const confirmUseMutation = useConfirmSubscriptionUse();
 
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -68,7 +84,9 @@ export default function SubscriptionDetailPage({
         typeof subscription.nextChargeDate === "string"
           ? subscription.nextChargeDate.split("T")[0]
           : new Date(subscription.nextChargeDate).toISOString().split("T")[0],
-      category: subscription.category,
+      category: subscription.category || DEFAULT_SUBSCRIPTION_CATEGORY,
+      serviceGroup: subscription.serviceGroup ?? "",
+      needScore: subscription.needScore ?? 70,
       notes: subscription.notes ?? "",
       websiteUrl: subscription.websiteUrl ?? "",
       isActive: subscription.isActive,
@@ -108,13 +126,15 @@ export default function SubscriptionDetailPage({
   }
 
   const daysUntil = getDaysUntil(subscription.nextChargeDate);
-  const monthlyEquivalent =
-    subscription.billingPeriod === "MONTHLY" ? subscription.price : subscription.price / 12;
-  const yearlyEquivalent =
-    subscription.billingPeriod === "YEARLY" ? subscription.price : subscription.price * 12;
+  const monthlyEquivalent = toMonthlyEquivalent(subscription.price, subscription.billingPeriod);
+  const yearlyEquivalent = toYearlyEquivalent(subscription.price, subscription.billingPeriod);
   const icon = categoryBadges[subscription.category] ?? categoryBadges.Other;
   const nextChargeTone = daysUntil < 0 ? "text-[#F97373]" : daysUntil <= 7 ? "text-[#F59E0B]" : "text-[#F9FAFB]";
   const subscriptionId = subscription.id;
+  const review = evaluateSubscriptionReview(
+    subscription,
+    subscriptionsQuery.data?.data ?? [],
+  );
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -148,19 +168,6 @@ export default function SubscriptionDetailPage({
     }
   }
 
-  async function handleConfirmUse() {
-    setFeedback(null);
-    try {
-      await confirmUseMutation.mutateAsync(subscriptionId);
-      setFeedback({ tone: "success", message: "Usage confirmed for today." });
-    } catch (error) {
-      setFeedback({
-        tone: "error",
-        message: error instanceof Error ? error.message : "Unable to confirm usage.",
-      });
-    }
-  }
-
   return (
     <ProtectedRoute>
       <AppShell>
@@ -188,8 +195,17 @@ export default function SubscriptionDetailPage({
                       <Tag variant={subscription.isActive ? "success" : "error"} size="md">
                         {subscription.isActive ? "Active" : "Inactive"}
                       </Tag>
-                      <Tag variant="info" size="md">
-                        {subscription.category}
+                      <Tag
+                        variant={
+                          review.status === "keep"
+                            ? "success"
+                            : review.status === "review"
+                              ? "warning"
+                              : "error"
+                        }
+                        size="md"
+                      >
+                        {review.label}
                       </Tag>
                     </div>
                     <p className="max-w-2xl text-base leading-relaxed text-[#94A3B8]">
@@ -252,6 +268,10 @@ export default function SubscriptionDetailPage({
               </div>
             </section>
 
+            <StatusBanner tone={review.tone} title={review.label}>
+              {review.reason}
+            </StatusBanner>
+
             {feedback ? <StatusBanner tone={feedback.tone}>{feedback.message}</StatusBanner> : null}
 
             {showDeleteConfirm ? (
@@ -292,10 +312,9 @@ export default function SubscriptionDetailPage({
                 <CardContent>
                   {isEditing ? (
                     <form onSubmit={handleSubmit} className="space-y-5">
-                      <Input
-                        label="Name"
+                      <SubscriptionNamePicker
                         value={formData.name ?? ""}
-                        onChange={(event) => setFormData({ ...formData, name: event.target.value })}
+                        onChange={(name) => setFormData({ ...formData, name })}
                         required
                       />
                       <div className="grid gap-4 md:grid-cols-2">
@@ -324,10 +343,13 @@ export default function SubscriptionDetailPage({
                                 billingPeriod: event.target.value as BillingPeriod,
                               })
                             }
-                            className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-[#F9FAFB] outline-none transition hover:bg-white/10 focus:border-[#4ADE80]/35"
+                            className="app-select w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-[#F9FAFB] outline-none transition hover:bg-white/10 focus:border-[#4ADE80]/35"
                           >
-                            <option value="MONTHLY">Monthly</option>
-                            <option value="YEARLY">Yearly</option>
+                            {(["DAILY", "MONTHLY", "YEARLY"] as const).map((period) => (
+                              <option key={period} value={period}>
+                                {formatBillingPeriod(period)}
+                              </option>
+                            ))}
                           </select>
                         </div>
                       </div>
@@ -340,13 +362,30 @@ export default function SubscriptionDetailPage({
                         }
                         required
                       />
-                      <div className="grid gap-4 md:grid-cols-2">
-                        <Input
-                          label="Category"
-                          value={formData.category ?? ""}
-                          onChange={(event) => setFormData({ ...formData, category: event.target.value })}
-                          required
-                        />
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-[#F9FAFB]/80">
+                          Service group
+                        </label>
+                        <select
+                          value={formData.serviceGroup ?? ""}
+                          onChange={(event) =>
+                            setFormData({ ...formData, serviceGroup: event.target.value })
+                          }
+                          className="app-select w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-[#F9FAFB] outline-none transition hover:bg-white/10 focus:border-[#4ADE80]/35"
+                        >
+                          <option value="">No group yet</option>
+                          {SERVICE_GROUP_OPTIONS.map((group) => (
+                            <option key={group} value={group}>
+                              {group}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <NeedScoreSlider
+                        value={formData.needScore ?? 70}
+                        onChange={(needScore) => setFormData({ ...formData, needScore })}
+                      />
+                      <div className="grid gap-4">
                         <Input
                           label="Website URL"
                           type="url"
@@ -398,7 +437,22 @@ export default function SubscriptionDetailPage({
                         <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                           <p className="text-sm text-[#9CA3AF]">Billing period</p>
                           <p className="mt-2 text-2xl font-semibold text-[#F9FAFB]">
-                            {subscription.billingPeriod === "MONTHLY" ? "Monthly" : "Yearly"}
+                            {formatBillingPeriod(subscription.billingPeriod)}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                          <p className="text-sm text-[#9CA3AF]">Need score</p>
+                          <p className="mt-2 text-2xl font-semibold text-[#F9FAFB]">
+                            {subscription.needScore}%
+                          </p>
+                        </div>
+                        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                          <p className="text-sm text-[#9CA3AF]">Service group</p>
+                          <p className="mt-2 text-xl font-semibold text-[#F9FAFB]">
+                            {subscription.serviceGroup || "Not grouped yet"}
                           </p>
                         </div>
                       </div>
@@ -444,23 +498,32 @@ export default function SubscriptionDetailPage({
               <div className="space-y-6">
                 <Card className="glass-hover">
                   <CardHeader>
-                    <CardTitle>Quick actions</CardTitle>
-                    <CardDescription>Useful controls for this subscription.</CardDescription>
+                    <CardTitle>Service access</CardTitle>
+                    <CardDescription>Useful links related to this subscription.</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <Button
-                      onClick={handleConfirmUse}
-                      disabled={confirmUseMutation.isPending}
-                      variant="outline"
-                      className="w-full border-[#38BDF8]/30 text-[#7DD3FC] hover:bg-[#38BDF8]/10"
-                    >
-                      <CheckCircle2 className="mr-2 h-4 w-4" />
-                      {confirmUseMutation.isPending ? "Saving..." : "Mark as used today"}
-                    </Button>
-                    <p className="text-sm leading-relaxed text-[#94A3B8]">
-                      Use this when you actually used the service. It improves unused-subscription
-                      signals across the dashboard and analytics.
-                    </p>
+                    {subscription.websiteUrl ? (
+                      <>
+                        <a
+                          href={subscription.websiteUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex w-full items-center justify-center rounded-xl border border-[#38BDF8]/30 px-4 py-3 text-sm font-medium text-[#7DD3FC] transition hover:bg-[#38BDF8]/10"
+                        >
+                          <Globe className="mr-2 h-4 w-4" />
+                          Open service website
+                        </a>
+                        <p className="text-sm leading-relaxed text-[#94A3B8]">
+                          Use this shortcut to review billing details, plan settings, or
+                          cancellation options on the provider website.
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-sm leading-relaxed text-[#94A3B8]">
+                        Add a website URL if you want a direct shortcut to the provider account or
+                        billing page.
+                      </p>
+                    )}
                   </CardContent>
                 </Card>
 

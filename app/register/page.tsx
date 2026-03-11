@@ -77,7 +77,7 @@ export default function RegisterPage() {
                 <select
                   value={currency}
                   onChange={(e) => setCurrency(e.target.value as Currency)}
-                  className="w-full rounded-2xl bg-white/5 border border-white/10 px-4 py-3 text-[#F9FAFB] focus-ring transition-all duration-200 hover:bg-white/10 focus:scale-[1.01]"
+                  className="app-select w-full rounded-2xl bg-white/5 border border-white/10 px-4 py-3 text-[#F9FAFB] focus-ring transition-all duration-200 hover:bg-white/10 focus:scale-[1.01]"
                 >
                   <option value="USD">USD - US Dollar</option>
                   <option value="EUR">EUR - Euro</option>

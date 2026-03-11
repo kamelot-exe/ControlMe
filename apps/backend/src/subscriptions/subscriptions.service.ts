@@ -17,6 +17,8 @@ export class SubscriptionsService {
         ...dto,
         userId,
         price: dto.price,
+        serviceGroup: dto.serviceGroup || null,
+        needScore: dto.needScore ?? 70,
         websiteUrl: dto.websiteUrl || null,
         nextChargeDate: new Date(dto.nextChargeDate),
       },
@@ -79,6 +81,12 @@ export class SubscriptionsService {
     }
     if (dto.websiteUrl !== undefined) {
       updateData.websiteUrl = dto.websiteUrl || null;
+    }
+    if (dto.serviceGroup !== undefined) {
+      updateData.serviceGroup = dto.serviceGroup || null;
+    }
+    if (dto.needScore !== undefined) {
+      updateData.needScore = dto.needScore;
     }
 
     const subscription = await this.prisma.subscription.update({
@@ -159,6 +167,8 @@ export class SubscriptionsService {
             price,
             billingPeriod,
             category,
+            serviceGroup: null,
+            needScore: 70,
             isActive: true,
             nextChargeDate,
           },
@@ -172,22 +182,5 @@ export class SubscriptionsService {
     }
 
     return { imported, errors };
-  }
-
-  async confirmUse(id: string, userId: string) {
-    await this.findOne(id, userId); // Check ownership
-
-    const usage = await this.prisma.subscriptionUsage.upsert({
-      where: { subscriptionId: id },
-      update: {
-        lastConfirmedUseAt: new Date(),
-      },
-      create: {
-        subscriptionId: id,
-        lastConfirmedUseAt: new Date(),
-      },
-    });
-
-    return usage;
   }
 }

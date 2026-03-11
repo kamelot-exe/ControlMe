@@ -16,7 +16,7 @@ export interface PaginatedResponse<T> {
 
 // Domain Models
 
-export type BillingPeriod = "MONTHLY" | "YEARLY";
+export type BillingPeriod = "DAILY" | "MONTHLY" | "YEARLY";
 
 export type Currency =
   | "USD"
@@ -31,6 +31,10 @@ export type Currency =
   | "INR";
 
 export type UsageStatus = "active" | "at_risk" | "unused";
+export type SubscriptionReviewStatus =
+  | "keep"
+  | "review"
+  | "cancel_candidate";
 
 export interface User {
   id: string;
@@ -58,6 +62,8 @@ export interface Subscription {
   billingPeriod: BillingPeriod;
   nextChargeDate: Date | string;
   category: string;
+  serviceGroup?: string | null;
+  needScore: number;
   websiteUrl?: string | null;
   notes?: string;
   isActive: boolean;
@@ -87,6 +93,8 @@ export interface CreateSubscriptionDto {
   billingPeriod: BillingPeriod;
   nextChargeDate: Date | string;
   category: string;
+  serviceGroup?: string;
+  needScore?: number;
   websiteUrl?: string;
   notes?: string;
 }
@@ -97,6 +105,8 @@ export interface UpdateSubscriptionDto {
   billingPeriod?: BillingPeriod;
   nextChargeDate?: Date | string;
   category?: string;
+  serviceGroup?: string;
+  needScore?: number;
   websiteUrl?: string;
   notes?: string;
   isActive?: boolean;

@@ -42,7 +42,6 @@ npm run dev
 - `GET /subscriptions/:id` - Get subscription by ID (protected)
 - `PATCH /subscriptions/:id` - Update subscription (protected)
 - `DELETE /subscriptions/:id` - Delete subscription (protected)
-- `POST /subscriptions/:id/confirm-use` - Confirm subscription usage (protected)
 
 ### Analytics
 - `GET /analytics/monthly` - Get monthly analytics (protected)

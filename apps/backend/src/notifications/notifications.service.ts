@@ -82,9 +82,11 @@ export class NotificationsService {
 
     for (const sub of subscriptions) {
       const monthlyPrice =
-        sub.billingPeriod === "MONTHLY"
-          ? Number(sub.price)
-          : Number(sub.price) / 12;
+        sub.billingPeriod === "DAILY"
+          ? Number(sub.price) * 30
+          : sub.billingPeriod === "MONTHLY"
+            ? Number(sub.price)
+            : Number(sub.price) / 12;
 
       currentMonthlyTotal += monthlyPrice;
       if (sub.createdAt <= previousCutoff) {

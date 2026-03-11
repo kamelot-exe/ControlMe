@@ -25,27 +25,25 @@ export class EmailService {
       this.config.get<string>("SMTP_FROM") ??
       "ControlMe <noreply@controlme.app>";
 
-    if (host && user && pass) {
+    if (host) {
       this.transporter = nodemailer.createTransport({
         host,
         port,
         secure: port === 465,
-        auth: { user, pass },
+        ...(user && pass ? { auth: { user, pass } } : {}),
       });
       this.configured = true;
-      this.logger.log(`Email transport configured → ${host}:${port}`);
+      this.logger.log(`Email transport configured -> ${host}:${port}`);
     } else {
       this.configured = false;
       this.logger.warn(
-        "SMTP not configured (SMTP_HOST / SMTP_USER / SMTP_PASS missing). " +
-          "Emails will be logged to console instead.",
+        "SMTP not configured (SMTP_HOST missing). Emails will be logged to console instead.",
       );
     }
   }
 
   async send(payload: EmailPayload): Promise<void> {
     if (!this.configured || !this.transporter) {
-      // Dev fallback — log to console
       this.logger.log(
         `[EMAIL DEV] To: ${payload.to} | Subject: ${payload.subject}\n` +
           payload.html.replace(/<[^>]+>/g, "").trim(),
@@ -60,7 +58,7 @@ export class EmailService {
         subject: payload.subject,
         html: payload.html,
       });
-      this.logger.log(`Email sent → ${payload.to} | ${payload.subject}`);
+      this.logger.log(`Email sent -> ${payload.to} | ${payload.subject}`);
     } catch (err) {
       this.logger.error(
         `Failed to send email to ${payload.to}: ${(err as Error).message}`,
@@ -68,7 +66,6 @@ export class EmailService {
     }
   }
 
-  /** Build a subscription-charge reminder email */
   static buildChargeReminderHtml(
     userName: string,
     items: Array<{
@@ -77,17 +74,18 @@ export class EmailService {
       currency: string;
       daysUntil: number;
     }>,
+    appUrl: string,
   ): string {
     const rows = items
       .map(
-        (i) =>
+        (item) =>
           `<tr>
-            <td style="padding:10px 12px;border-bottom:1px solid #1e2d3d;color:#F9FAFB;">${i.name}</td>
+            <td style="padding:10px 12px;border-bottom:1px solid #1e2d3d;color:#F9FAFB;">${item.name}</td>
             <td style="padding:10px 12px;border-bottom:1px solid #1e2d3d;color:#4ADE80;text-align:right;">
-              ${i.currency} ${i.price.toFixed(2)}
+              ${item.currency} ${item.price.toFixed(2)}
             </td>
             <td style="padding:10px 12px;border-bottom:1px solid #1e2d3d;color:#F59E0B;text-align:right;">
-              ${i.daysUntil === 0 ? "Today" : i.daysUntil === 1 ? "Tomorrow" : `In ${i.daysUntil}d`}
+              ${item.daysUntil === 0 ? "Today" : item.daysUntil === 1 ? "Tomorrow" : `In ${item.daysUntil}d`}
             </td>
           </tr>`,
       )
@@ -97,18 +95,16 @@ export class EmailService {
 <!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"></head>
-<body style="margin:0;padding:0;background:#060B16;font-family:'Inter',Arial,sans-serif;">
+<body style="margin:0;padding:0;background:#060B16;font-family:Arial,sans-serif;">
   <table width="100%" cellpadding="0" cellspacing="0">
     <tr>
       <td align="center" style="padding:40px 16px;">
         <table width="560" cellpadding="0" cellspacing="0" style="background:#0E1628;border-radius:16px;border:1px solid rgba(255,255,255,0.08);overflow:hidden;max-width:560px;">
-          <!-- Header -->
           <tr>
             <td style="background:linear-gradient(135deg,#060B16,#0E1628);padding:28px 32px;border-bottom:1px solid rgba(255,255,255,0.08);">
-              <span style="font-size:22px;font-weight:800;color:#F9FAFB;letter-spacing:-0.5px;">⚡ ControlMe</span>
+              <span style="font-size:22px;font-weight:800;color:#F9FAFB;letter-spacing:-0.5px;">ControlMe</span>
             </td>
           </tr>
-          <!-- Body -->
           <tr>
             <td style="padding:28px 32px;">
               <h1 style="margin:0 0 8px;font-size:20px;font-weight:700;color:#F9FAFB;">
@@ -127,14 +123,21 @@ export class EmailService {
                 </thead>
                 <tbody>${rows}</tbody>
               </table>
+              <p style="margin:20px 0 0;color:#9CA3AF;font-size:13px;line-height:1.6;">
+                Review these renewals before they hit your balance and keep only the subscriptions you still use.
+              </p>
+              <p style="margin:20px 0 0;">
+                <a href="${appUrl}/dashboard" style="display:inline-block;padding:12px 16px;border-radius:12px;background:#4ADE80;color:#05111A;font-size:13px;font-weight:700;text-decoration:none;">
+                  Open ControlMe
+                </a>
+              </p>
             </td>
           </tr>
-          <!-- Footer -->
           <tr>
             <td style="padding:20px 32px;border-top:1px solid rgba(255,255,255,0.06);">
               <p style="margin:0;font-size:12px;color:#6B7280;">
-                You're receiving this because you enabled charge reminders in ControlMe.
-                <a href="https://controlme.app/settings" style="color:#4ADE80;">Manage preferences</a>
+                You're receiving this because charge reminders are enabled in ControlMe.
+                <a href="${appUrl}/settings" style="color:#4ADE80;">Manage preferences</a>
               </p>
             </td>
           </tr>

@@ -9,6 +9,8 @@ import {
   MaxLength,
   IsIn,
   IsUrl,
+  IsInt,
+  Max,
 } from "class-validator";
 import { BillingPeriod } from "@/shared/types";
 
@@ -25,7 +27,7 @@ export class UpdateSubscriptionDto {
   price?: number;
 
   @IsOptional()
-  @IsIn(["MONTHLY", "YEARLY"])
+  @IsIn(["DAILY", "MONTHLY", "YEARLY"])
   billingPeriod?: BillingPeriod;
 
   @IsOptional()
@@ -37,6 +39,17 @@ export class UpdateSubscriptionDto {
   @MinLength(1)
   @MaxLength(50)
   category?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  serviceGroup?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  needScore?: number;
 
   @IsOptional()
   @IsUrl({}, { message: "Website URL must be a valid URL" })

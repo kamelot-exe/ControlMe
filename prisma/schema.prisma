@@ -32,6 +32,8 @@ model Subscription {
   billingPeriod  String   @map("billing_period") // MONTHLY | YEARLY
   nextChargeDate DateTime @map("next_charge_date")
   category       String
+  serviceGroup   String?  @map("service_group")
+  needScore      Int      @default(70) @map("need_score")
   websiteUrl     String?  @map("website_url")
   notes          String?
   isActive       Boolean  @default(true) @map("is_active")
