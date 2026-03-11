@@ -1,0 +1,19 @@
+{
+  "name": "ControlMe",
+  "short_name": "ControlMe",
+  "description": "Track and control all your subscriptions",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#060B16",
+  "theme_color": "#4ADE80",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["finance", "productivity"]
+}

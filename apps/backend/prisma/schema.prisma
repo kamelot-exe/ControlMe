@@ -1,0 +1,66 @@
+// Prisma schema for ControlMe
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                       String    @id @default(uuid())
+  email                    String    @unique
+  passwordHash             String    @map("password_hash")
+  currency                 String    @default("USD")
+  budgetLimit              Float?    @map("budget_limit")
+  passwordResetToken       String?   @unique @map("password_reset_token")
+  passwordResetTokenExpiry DateTime? @map("password_reset_token_expiry")
+  createdAt                DateTime  @default(now()) @map("created_at")
+
+  subscriptions        Subscription[]
+  notificationSettings NotificationSettings?
+
+  @@map("users")
+}
+
+model Subscription {
+  id             String   @id @default(uuid())
+  userId         String   @map("user_id")
+  name           String
+  price          Decimal  @db.Decimal(10, 2)
+  billingPeriod  String   @map("billing_period") // MONTHLY | YEARLY
+  nextChargeDate DateTime @map("next_charge_date")
+  category       String
+  websiteUrl     String?  @map("website_url")
+  notes          String?
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  user  User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  usage SubscriptionUsage?
+
+  @@map("subscriptions")
+}
+
+model SubscriptionUsage {
+  id                 String    @id @default(uuid())
+  subscriptionId     String    @unique @map("subscription_id")
+  lastConfirmedUseAt DateTime? @map("last_confirmed_use_at")
+
+  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@map("subscription_usage")
+}
+
+model NotificationSettings {
+  id                    String  @id @default(uuid())
+  userId                String  @unique @map("user_id")
+  prechargeReminderDays Int     @default(1) @map("precharge_reminder_days")
+  smartAlertsEnabled    Boolean @default(true) @map("smart_alerts_enabled")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notification_settings")
+}
