@@ -1,7 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import * as nodemailer from 'nodemailer';
-import type { Transporter } from 'nodemailer';
+import { Injectable, Logger } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import * as nodemailer from "nodemailer";
+import type { Transporter } from "nodemailer";
 
 export interface EmailPayload {
   to: string;
@@ -17,11 +17,13 @@ export class EmailService {
   private readonly configured: boolean;
 
   constructor(private config: ConfigService) {
-    const host = this.config.get<string>('SMTP_HOST');
-    const port = this.config.get<number>('SMTP_PORT') ?? 587;
-    const user = this.config.get<string>('SMTP_USER');
-    const pass = this.config.get<string>('SMTP_PASS');
-    this.from = this.config.get<string>('SMTP_FROM') ?? 'ControlMe <noreply@controlme.app>';
+    const host = this.config.get<string>("SMTP_HOST");
+    const port = this.config.get<number>("SMTP_PORT") ?? 587;
+    const user = this.config.get<string>("SMTP_USER");
+    const pass = this.config.get<string>("SMTP_PASS");
+    this.from =
+      this.config.get<string>("SMTP_FROM") ??
+      "ControlMe <noreply@controlme.app>";
 
     if (host && user && pass) {
       this.transporter = nodemailer.createTransport({
@@ -35,8 +37,8 @@ export class EmailService {
     } else {
       this.configured = false;
       this.logger.warn(
-        'SMTP not configured (SMTP_HOST / SMTP_USER / SMTP_PASS missing). ' +
-        'Emails will be logged to console instead.',
+        "SMTP not configured (SMTP_HOST / SMTP_USER / SMTP_PASS missing). " +
+          "Emails will be logged to console instead.",
       );
     }
   }
@@ -46,7 +48,7 @@ export class EmailService {
       // Dev fallback — log to console
       this.logger.log(
         `[EMAIL DEV] To: ${payload.to} | Subject: ${payload.subject}\n` +
-        payload.html.replace(/<[^>]+>/g, '').trim(),
+          payload.html.replace(/<[^>]+>/g, "").trim(),
       );
       return;
     }
@@ -60,14 +62,21 @@ export class EmailService {
       });
       this.logger.log(`Email sent → ${payload.to} | ${payload.subject}`);
     } catch (err) {
-      this.logger.error(`Failed to send email to ${payload.to}: ${(err as Error).message}`);
+      this.logger.error(
+        `Failed to send email to ${payload.to}: ${(err as Error).message}`,
+      );
     }
   }
 
   /** Build a subscription-charge reminder email */
   static buildChargeReminderHtml(
     userName: string,
-    items: Array<{ name: string; price: number; currency: string; daysUntil: number }>,
+    items: Array<{
+      name: string;
+      price: number;
+      currency: string;
+      daysUntil: number;
+    }>,
   ): string {
     const rows = items
       .map(
@@ -78,11 +87,11 @@ export class EmailService {
               ${i.currency} ${i.price.toFixed(2)}
             </td>
             <td style="padding:10px 12px;border-bottom:1px solid #1e2d3d;color:#F59E0B;text-align:right;">
-              ${i.daysUntil === 0 ? 'Today' : i.daysUntil === 1 ? 'Tomorrow' : `In ${i.daysUntil}d`}
+              ${i.daysUntil === 0 ? "Today" : i.daysUntil === 1 ? "Tomorrow" : `In ${i.daysUntil}d`}
             </td>
           </tr>`,
       )
-      .join('');
+      .join("");
 
     return `
 <!DOCTYPE html>
@@ -106,7 +115,7 @@ export class EmailService {
                 Upcoming charges reminder
               </h1>
               <p style="margin:0 0 24px;color:#9CA3AF;font-size:14px;">
-                Hi${userName ? ` ${userName}` : ''}! Here are your subscriptions charging soon:
+                Hi${userName ? ` ${userName}` : ""}! Here are your subscriptions charging soon:
               </p>
               <table width="100%" cellpadding="0" cellspacing="0" style="border-radius:10px;overflow:hidden;border:1px solid #1e2d3d;">
                 <thead>

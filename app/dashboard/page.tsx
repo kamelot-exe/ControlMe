@@ -1,101 +1,101 @@
 "use client";
 
-import React, { useMemo } from "react";
+import { useMemo } from "react";
+import Link from "next/link";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { AppShell } from "@/components/layout/AppShell";
+import { ConnectionError } from "@/components/errors/ConnectionError";
+import { OnboardingEmpty } from "@/components/ui/OnboardingEmpty";
+import { ErrorState } from "@/components/ui/ErrorState";
+import { SkeletonCard } from "@/components/ui/Skeleton";
 import { DonutChart } from "@/components/ui/DonutChart";
 import { Chart } from "@/components/ui/Chart";
+import { StatusBanner } from "@/components/ui/StatusBanner";
 import { Tag } from "@/components/ui/Tag";
-import { ConnectionError } from "@/components/errors/ConnectionError";
-import { SkeletonCard } from "@/components/ui/Skeleton";
-import { ErrorState } from "@/components/ui/ErrorState";
 import { useSubscriptions } from "@/hooks/use-subscriptions";
 import { useMonthlyAnalytics, useSavingsSummary, useSpendingHistory } from "@/hooks/use-analytics";
 import { useSmartAlerts } from "@/hooks/use-notifications";
 import { useMe } from "@/hooks/use-auth";
 import { useApiError } from "@/hooks/use-api-error";
-import { formatCurrency, formatDateShort, getDaysUntil, getUpcomingCharges } from "@/lib/utils/format";
-import { OnboardingEmpty } from "@/components/ui/OnboardingEmpty";
-import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { formatCurrency, formatDateShort, getDaysUntil, getUpcomingCharges } from "@/lib/utils/format";
 
-const COLORS = ["#4ADE80", "#38BDF8", "#F97373", "#F59E0B", "#8B5CF6", "#EC4899", "#10B981", "#6366F1"];
+const CHART_COLORS = ["#4ADE80", "#38BDF8", "#F59E0B", "#8B5CF6", "#F97373", "#10B981"];
 
-const categoryColors: Record<string, string> = {
-  Streaming: "#38BDF8", Software: "#4ADE80", Gym: "#F87171",
-  Music: "#8B5CF6", Cloud: "#38BDF8", News: "#9CA3AF",
-  Education: "#F59E0B", Gaming: "#8B5CF6", Finance: "#4ADE80", Other: "#9CA3AF",
-};
-
-// Generate next 30 days calendar
-function buildCalendar(upcomingCharges: ReturnType<typeof getUpcomingCharges>) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const days: { date: Date; charges: { name: string; price: number }[] }[] = [];
-  for (let i = 0; i < 30; i++) {
-    const d = new Date(today);
-    d.setDate(today.getDate() + i);
-    const charges = upcomingCharges.filter((sub) => {
-      const cd = new Date(sub.nextChargeDate);
-      cd.setHours(0, 0, 0, 0);
-      return cd.getTime() === d.getTime();
-    }).map((sub) => ({ name: sub.name, price: sub.price }));
-    days.push({ date: d, charges });
-  }
-  return days;
+function getTrend(current?: number, previous?: number) {
+  if (current == null || previous == null || previous === 0) return null;
+  return Math.round(((current - previous) / previous) * 100);
 }
 
 export default function DashboardPage() {
   const subscriptionsQuery = useSubscriptions();
   const analyticsQuery = useMonthlyAnalytics();
   const alertsQuery = useSmartAlerts();
-  const meQuery = useMe();
   const savingsQuery = useSavingsSummary();
   const historyQuery = useSpendingHistory();
+  const meQuery = useMe();
 
   const subscriptionsError = useApiError(subscriptionsQuery);
   const analyticsError = useApiError(analyticsQuery);
 
-  const subscriptions = subscriptionsQuery.data?.data ?? [];
+  const subscriptions = useMemo(() => subscriptionsQuery.data?.data ?? [], [subscriptionsQuery.data]);
   const analytics = analyticsQuery.data?.data;
   const alerts = alertsQuery.data?.data?.alerts ?? [];
-  const me = meQuery.data?.data;
-  const currency = me?.currency ?? "USD";
-  const budgetLimit = (me as any)?.budgetLimit as number | null | undefined;
   const savings = savingsQuery.data?.data;
   const spendingHistory = historyQuery.data?.data ?? [];
+  const user = meQuery.data?.data;
+  const currency = user?.currency ?? "USD";
+  const budgetLimit = user?.budgetLimit ?? null;
 
-  const upcomingCharges = getUpcomingCharges(subscriptions, 30);
-  const calendarDays = useMemo(() => buildCalendar(upcomingCharges), [upcomingCharges]);
+  const isLoading =
+    subscriptionsQuery.isLoading ||
+    analyticsQuery.isLoading ||
+    savingsQuery.isLoading ||
+    historyQuery.isLoading;
 
-  const categoryChartData = analytics?.categoryBreakdown.map((item, index) => ({
-    name: item.category,
-    value: item.total,
-    color: COLORS[index % COLORS.length],
-  })) ?? [];
+  const hasConnectionError = subscriptionsError.isConnectionError || analyticsError.isConnectionError;
 
-  const historyChartData = spendingHistory.map((item) => ({
-    name: item.month,
-    value: item.total,
-  }));
+  const upcomingCharges = useMemo(() => getUpcomingCharges(subscriptions, 30), [subscriptions]);
+  const urgentCharges = upcomingCharges.filter((item) => getDaysUntil(item.nextChargeDate) <= 7);
+  const upcomingTotal = upcomingCharges.reduce((sum, item) => sum + item.price, 0);
 
-  const budgetPercent = budgetLimit && analytics
-    ? Math.min((analytics.totalMonthlyCost / budgetLimit) * 100, 100)
+  const topCategory = analytics?.categoryBreakdown?.length
+    ? [...analytics.categoryBreakdown].sort((a, b) => b.total - a.total)[0]
     : null;
 
-  const isLoading = subscriptionsQuery.isLoading || analyticsQuery.isLoading;
+  const chartData = spendingHistory.map((entry) => ({ name: entry.month, value: entry.total }));
+  const categoryData =
+    analytics?.categoryBreakdown.map((item, index) => ({
+      name: item.category,
+      value: item.total,
+      color: CHART_COLORS[index % CHART_COLORS.length],
+    })) ?? [];
+
+  const currentMonth = spendingHistory[spendingHistory.length - 1]?.total;
+  const previousMonth = spendingHistory[spendingHistory.length - 2]?.total;
+  const monthlyTrend = getTrend(currentMonth, previousMonth);
+
+  const budgetPercent =
+    budgetLimit && analytics ? Math.min((analytics.totalMonthlyCost / budgetLimit) * 100, 100) : null;
 
   if (isLoading) {
     return (
       <ProtectedRoute>
         <AppShell>
           <div className="p-8 md:p-10 lg:p-12">
-            <div className="max-w-7xl space-y-8 animate-fade-in">
-              <div className="grid gap-6 lg:grid-cols-3">
-                <div className="lg:col-span-2"><SkeletonCard /></div>
-                <div className="space-y-4"><SkeletonCard /><SkeletonCard /></div>
+            <div className="max-w-7xl space-y-6">
+              <SkeletonCard />
+              <div className="grid gap-4 lg:grid-cols-4">
+                <SkeletonCard />
+                <SkeletonCard />
+                <SkeletonCard />
+                <SkeletonCard />
               </div>
-              <div className="grid gap-6 lg:grid-cols-2"><SkeletonCard /><SkeletonCard /></div>
+              <div className="grid gap-6 lg:grid-cols-2">
+                <SkeletonCard />
+                <SkeletonCard />
+              </div>
+              <SkeletonCard />
             </div>
           </div>
         </AppShell>
@@ -103,14 +103,17 @@ export default function DashboardPage() {
     );
   }
 
-  const hasConnectionError = subscriptionsError.isConnectionError || analyticsError.isConnectionError;
-
   if (subscriptions.length === 0 && !subscriptionsQuery.isError) {
     return (
       <ProtectedRoute>
         <AppShell>
-          <div className="p-8 md:p-10">
-            <OnboardingEmpty />
+          <div className="p-8 md:p-10 lg:p-12">
+            <div className="max-w-6xl space-y-6">
+              <StatusBanner tone="info" title="Start with your first recurring cost">
+                Add a few services first and the dashboard will turn into a real command center for spending, renewals, and savings.
+              </StatusBanner>
+              <OnboardingEmpty />
+            </div>
           </div>
         </AppShell>
       </ProtectedRoute>
@@ -122,251 +125,285 @@ export default function DashboardPage() {
       <AppShell>
         <div className="p-8 md:p-10 lg:p-12">
           <div className="max-w-7xl space-y-6 animate-fade-in">
-
-          {hasConnectionError && (
-            <ConnectionError onRetry={() => { subscriptionsQuery.refetch(); analyticsQuery.refetch(); }} />
-          )}
-          {(subscriptionsQuery.isError || analyticsQuery.isError) && !hasConnectionError && (
-            <ErrorState
-              title="Unable to load dashboard data"
-              message={subscriptionsError.errorMessage || analyticsError.errorMessage || "Please try again."}
-              onRetry={() => { subscriptionsQuery.refetch(); analyticsQuery.refetch(); }}
-            />
-          )}
-
-          {/* ── HERO ZONE ── */}
-          <div className="grid gap-5 lg:grid-cols-3">
-            {/* Main hero card */}
-            <div className="lg:col-span-2 glass-hover rounded-3xl p-8 animate-slide-up">
-              <p className="text-xs text-[#9CA3AF] uppercase tracking-widest mb-3">Monthly Total</p>
-              <h1 className="text-5xl md:text-6xl font-semibold text-[#F9FAFB] tracking-tight animate-count-up leading-none mb-4">
-                {analytics ? formatCurrency(analytics.totalMonthlyCost, currency) : "—"}
-              </h1>
-              <p className="text-[#9CA3AF]">
-                Yearly:{" "}
-                <span className="text-[#F9FAFB] font-medium">
-                  {analytics ? formatCurrency(analytics.totalYearlyCost, currency) : "—"}
-                </span>
-              </p>
-
-              {/* Budget progress bar */}
-              {budgetLimit && analytics && (
-                <div className="mt-5">
-                  <div className="flex items-center justify-between text-sm mb-2">
-                    <span className="text-[#9CA3AF]">Budget</span>
-                    <span className={cn(
-                      "font-medium",
-                      budgetPercent! >= 100 ? "text-[#F87171]" : budgetPercent! >= 80 ? "text-[#F59E0B]" : "text-[#4ADE80]"
-                    )}>
-                      {formatCurrency(analytics.totalMonthlyCost, currency)} / {formatCurrency(budgetLimit, currency)}
-                    </span>
-                  </div>
-                  <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
-                    <div
-                      className={cn(
-                        "h-full rounded-full transition-all duration-700",
-                        budgetPercent! >= 100 ? "bg-[#F87171]" : budgetPercent! >= 80 ? "bg-[#F59E0B]" : "bg-[#4ADE80]"
-                      )}
-                      style={{ width: `${budgetPercent}%` }}
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Side stats */}
-            <div className="space-y-4">
-              <div className="glass-hover rounded-3xl p-6 animate-slide-up" style={{ animationDelay: "0.05s" }}>
-                <p className="text-xs text-[#9CA3AF] uppercase tracking-widest mb-2">Active Subscriptions</p>
-                <p className="text-4xl font-semibold text-[#38BDF8] tracking-tight animate-count-up">
-                  {analytics?.activeSubscriptions ?? "—"}
-                </p>
-              </div>
-              {savings && savings.unusedCount > 0 && (
-                <div
-                  className="rounded-3xl p-6 animate-slide-up border border-[#F87171]/25"
-                  style={{ background: "rgba(248,113,113,0.06)", animationDelay: "0.1s" }}
-                >
-                  <p className="text-xs text-[#F87171] uppercase tracking-widest mb-2">Potential Savings</p>
-                  <p className="text-3xl font-semibold text-[#F87171] tracking-tight animate-count-up">
-                    {formatCurrency(savings.monthlySavings, currency)}
-                  </p>
-                  <p className="text-xs text-[#9CA3AF] mt-1">{savings.unusedCount} unused/mo</p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* ── UPCOMING + DONUT ── */}
-          <div className="grid gap-5 lg:grid-cols-2">
-            {/* Upcoming charges — timeline style */}
-            <div className="glass-hover rounded-3xl p-6 animate-slide-up" style={{ animationDelay: "0.1s" }}>
-              <h2 className="text-lg font-semibold text-[#F9FAFB] mb-1">Upcoming Charges</h2>
-              <p className="text-sm text-[#9CA3AF] mb-5">Next 30 days</p>
-
-              {upcomingCharges.length === 0 ? (
-                <div className="text-center py-8">
-                  <p className="text-4xl mb-3">📅</p>
-                  <p className="text-[#9CA3AF] text-sm">No upcoming charges</p>
-                </div>
-              ) : (
-                <div className="relative space-y-1">
-                  {upcomingCharges.slice(0, 7).map((sub, index) => {
-                    const daysUntil = getDaysUntil(sub.nextChargeDate);
-                    const dotColor = daysUntil <= 2 ? "#F87171" : daysUntil <= 7 ? "#F59E0B" : "#4ADE80";
-                    const isLast = index === Math.min(upcomingCharges.length, 7) - 1;
-
-                    return (
-                      <Link key={sub.id} href={`/subscriptions/${sub.id}`}>
-                        <div className="flex items-center gap-4 p-3 rounded-2xl hover:bg-white/5 transition-all duration-[120ms] group">
-                          {/* Timeline dot + line */}
-                          <div className="flex flex-col items-center flex-shrink-0 w-5">
-                            <div
-                              className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                              style={{ background: dotColor, boxShadow: `0 0 8px ${dotColor}60` }}
-                            />
-                            {!isLast && <div className="w-px flex-1 bg-white/10 mt-1" style={{ minHeight: "20px" }} />}
-                          </div>
-
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-[#F9FAFB] truncate group-hover:text-white transition-colors">
-                              {sub.name}
-                            </p>
-                            <p className="text-xs text-[#9CA3AF]">{formatDateShort(sub.nextChargeDate)}</p>
-                          </div>
-
-                          <div className="flex items-center gap-2 flex-shrink-0">
-                            {daysUntil <= 7 && (
-                              <Tag variant={daysUntil <= 2 ? "error" : "warning"} size="sm">
-                                {daysUntil === 0 ? "Today" : daysUntil === 1 ? "Tomorrow" : `${daysUntil}d`}
-                              </Tag>
-                            )}
-                            <span className="text-sm font-semibold text-[#F9FAFB]">
-                              {formatCurrency(sub.price, currency)}
-                            </span>
-                          </div>
-                        </div>
-                      </Link>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* Category donut */}
-            <div className="glass-hover rounded-3xl p-6 animate-slide-up" style={{ animationDelay: "0.15s" }}>
-              <h2 className="text-lg font-semibold text-[#F9FAFB] mb-1">Category Breakdown</h2>
-              <p className="text-sm text-[#9CA3AF] mb-5">Monthly spending by category</p>
-
-              {categoryChartData.length === 0 ? (
-                <div className="text-center py-8">
-                  <p className="text-4xl mb-3">📊</p>
-                  <p className="text-[#9CA3AF] text-sm">Add subscriptions to see breakdown</p>
-                </div>
-              ) : (
-                <DonutChart data={categoryChartData} />
-              )}
-            </div>
-          </div>
-
-          {/* ── BILLING CALENDAR ── */}
-          <div className="glass-hover rounded-3xl p-6 animate-slide-up" style={{ animationDelay: "0.2s" }}>
-            <h2 className="text-lg font-semibold text-[#F9FAFB] mb-1">Billing Calendar</h2>
-            <p className="text-sm text-[#9CA3AF] mb-5">Next 30 days</p>
-
-            <div className="grid grid-cols-7 gap-1 text-center">
-              {/* Weekday headers */}
-              {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
-                <div key={d} className="text-xs text-[#9CA3AF] font-medium pb-2">{d}</div>
-              ))}
-
-              {/* Empty cells before first day */}
-              {Array.from({ length: (calendarDays[0].date.getDay() + 6) % 7 }).map((_, i) => (
-                <div key={`empty-${i}`} />
-              ))}
-
-              {/* Day cells */}
-              {calendarDays.map(({ date, charges }, idx) => {
-                const isToday = idx === 0;
-                const hasCharge = charges.length > 0;
-
-                return (
-                  <div
-                    key={idx}
-                    className={cn(
-                      "rounded-xl p-1.5 min-h-[52px] flex flex-col items-center gap-0.5 transition-all duration-[120ms]",
-                      isToday && "ring-1 ring-[#4ADE80]/60",
-                      hasCharge && "bg-white/5 hover:bg-white/10 cursor-pointer"
-                    )}
-                  >
-                    <span className={cn(
-                      "text-xs font-medium",
-                      isToday ? "text-[#4ADE80]" : "text-[#9CA3AF]"
-                    )}>
-                      {date.getDate()}
-                    </span>
-                    {charges.slice(0, 2).map((c, ci) => (
-                      <div
-                        key={ci}
-                        className="w-full px-1 py-0.5 rounded text-[9px] leading-tight truncate text-center font-medium"
-                        style={{ background: "rgba(74,222,128,0.15)", color: "#4ADE80" }}
-                        title={`${c.name}: ${formatCurrency(c.price, currency)}`}
-                      >
-                        {c.name.length > 8 ? c.name.slice(0, 7) + "…" : c.name}
-                      </div>
-                    ))}
-                    {charges.length > 2 && (
-                      <span className="text-[9px] text-[#9CA3AF]">+{charges.length - 2}</span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* ── SPENDING HISTORY ── */}
-          {historyChartData.length > 0 && (
-            <div className="glass-hover rounded-3xl p-6 animate-slide-up" style={{ animationDelay: "0.25s" }}>
-              <h2 className="text-lg font-semibold text-[#F9FAFB] mb-1">Spending History</h2>
-              <p className="text-sm text-[#9CA3AF] mb-5">Last 6 months</p>
-              <Chart
-                data={historyChartData}
-                dataKey="value"
-                type="area"
-                color="#4ADE80"
+            {hasConnectionError ? (
+              <ConnectionError
+                onRetry={() => {
+                  subscriptionsQuery.refetch();
+                  analyticsQuery.refetch();
+                  savingsQuery.refetch();
+                  historyQuery.refetch();
+                  alertsQuery.refetch();
+                }}
               />
-            </div>
-          )}
+            ) : null}
 
-          {/* ── SMART SIGNALS ── */}
-          {alerts.length > 0 && (
-            <div className="glass-hover rounded-3xl p-6 animate-slide-up" style={{ animationDelay: "0.3s" }}>
-              <h2 className="text-lg font-semibold text-[#F9FAFB] mb-1">Smart Signals</h2>
-              <p className="text-sm text-[#9CA3AF] mb-5">Things that need your attention</p>
-              <div className="space-y-2">
-                {alerts.map((alert, index) => {
-                  const config: Record<string, { variant: "warning" | "error" | "info" | "purple"; label: string }> = {
-                    PRECHARGE: { variant: "warning", label: "Upcoming" },
-                    UNUSED:    { variant: "error",   label: "Unused" },
-                    SPENDING_INCREASE: { variant: "info", label: "Trend" },
-                    DUPLICATE: { variant: "purple",  label: "Duplicate" },
-                  };
-                  const { variant, label } = config[alert.type] ?? { variant: "info", label: alert.type };
+            {(subscriptionsQuery.isError || analyticsQuery.isError) && !hasConnectionError ? (
+              <ErrorState
+                title="Unable to load dashboard data"
+                message={subscriptionsError.errorMessage || analyticsError.errorMessage || "Please try again."}
+                onRetry={() => {
+                  subscriptionsQuery.refetch();
+                  analyticsQuery.refetch();
+                }}
+              />
+            ) : null}
 
-                  return (
-                    <div
-                      key={index}
-                      className="glass-light rounded-2xl p-4 flex items-center justify-between gap-4 animate-fade-in"
-                      style={{ animationDelay: `${index * 0.04}s` }}
-                    >
-                      <p className="text-sm text-[#F9FAFB]">{alert.message}</p>
-                      <Tag variant={variant} size="sm" className="flex-shrink-0">{label}</Tag>
+            <section className="grid gap-5 lg:grid-cols-[1.6fr_1fr]">
+              <div className="glass-hover rounded-3xl p-8">
+                <div className="flex flex-wrap items-start justify-between gap-6">
+                  <div className="space-y-4 max-w-2xl">
+                    <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs uppercase tracking-[0.24em] text-[#9CA3AF]">
+                      Dashboard
                     </div>
-                  );
-                })}
+                    <div>
+                      <p className="text-sm text-[#9CA3AF] mb-2">Current monthly exposure</p>
+                      <h1 className="text-5xl md:text-6xl font-semibold tracking-tight text-[#F9FAFB]">
+                        {analytics ? formatCurrency(analytics.totalMonthlyCost, currency) : "—"}
+                      </h1>
+                    </div>
+                    <p className="text-base text-[#B8C0C7] leading-relaxed max-w-xl">
+                      Track, understand, and control every subscription from one view: renewals, category concentration, unused spend, and changes in monthly cost.
+                    </p>
+                  </div>
+
+                  <div className="w-full max-w-sm space-y-3">
+                    <div className="glass-light rounded-2xl p-4">
+                      <p className="text-xs uppercase tracking-[0.2em] text-[#9CA3AF] mb-2">Quick signals</p>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[#9CA3AF]">Upcoming in 7 days</span>
+                          <span className="text-[#F9FAFB] font-medium">{urgentCharges.length}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[#9CA3AF]">Unused spend</span>
+                          <span className="text-[#F9FAFB] font-medium">
+                            {savings ? formatCurrency(savings.monthlySavings, currency) : "—"}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[#9CA3AF]">Top category</span>
+                          <span className="text-[#F9FAFB] font-medium">{topCategory?.category ?? "—"}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {budgetLimit && analytics ? (
+                      <div className="glass-light rounded-2xl p-4">
+                        <div className="flex items-center justify-between text-sm mb-2">
+                          <span className="text-[#9CA3AF]">Budget progress</span>
+                          <span
+                            className={cn(
+                              "font-medium",
+                              budgetPercent && budgetPercent >= 100
+                                ? "text-[#F97373]"
+                                : budgetPercent && budgetPercent >= 80
+                                  ? "text-[#F59E0B]"
+                                  : "text-[#4ADE80]"
+                            )}
+                          >
+                            {formatCurrency(analytics.totalMonthlyCost, currency)} / {formatCurrency(budgetLimit, currency)}
+                          </span>
+                        </div>
+                        <div className="h-2 rounded-full bg-white/8 overflow-hidden">
+                          <div
+                            className={cn(
+                              "h-full rounded-full transition-all duration-500",
+                              budgetPercent && budgetPercent >= 100
+                                ? "bg-[#F97373]"
+                                : budgetPercent && budgetPercent >= 80
+                                  ? "bg-[#F59E0B]"
+                                  : "bg-[#4ADE80]"
+                            )}
+                            style={{ width: `${budgetPercent ?? 0}%` }}
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <StatusBanner tone="neutral" title="Budget tracking is off">
+                        Add a budget limit in settings to compare your monthly recurring spend against a target.
+                      </StatusBanner>
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
-          )}
+
+              <div className="glass-hover rounded-3xl p-6">
+                <p className="text-xs uppercase tracking-[0.2em] text-[#9CA3AF] mb-2">This month</p>
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-sm text-[#9CA3AF]">Trend vs previous month</p>
+                    <p
+                      className={cn(
+                        "text-4xl font-semibold tracking-tight",
+                        monthlyTrend == null
+                          ? "text-[#F9FAFB]"
+                          : monthlyTrend > 0
+                            ? "text-[#F59E0B]"
+                            : monthlyTrend < 0
+                              ? "text-[#4ADE80]"
+                              : "text-[#38BDF8]"
+                      )}
+                    >
+                      {monthlyTrend == null ? "—" : `${monthlyTrend > 0 ? "+" : ""}${monthlyTrend}%`}
+                    </p>
+                  </div>
+                  <div className="space-y-3 pt-2 border-t border-white/10">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-[#9CA3AF]">Yearly equivalent</span>
+                      <span className="text-sm font-medium text-[#F9FAFB]">
+                        {analytics ? formatCurrency(analytics.totalYearlyCost, currency) : "—"}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-[#9CA3AF]">Active subscriptions</span>
+                      <span className="text-sm font-medium text-[#F9FAFB]">
+                        {analytics?.activeSubscriptions ?? subscriptions.length}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-[#9CA3AF]">30-day charge total</span>
+                      <span className="text-sm font-medium text-[#F9FAFB]">
+                        {formatCurrency(upcomingTotal, currency)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              {[
+                {
+                  label: "Active subscriptions",
+                  value: String(analytics?.activeSubscriptions ?? subscriptions.length),
+                  tone: "text-[#F9FAFB]",
+                  detail: "Currently billing or available",
+                },
+                {
+                  label: "Urgent renewals",
+                  value: String(urgentCharges.length),
+                  tone: urgentCharges.length > 0 ? "text-[#F59E0B]" : "text-[#F9FAFB]",
+                  detail: "Due within the next 7 days",
+                },
+                {
+                  label: "Potential savings",
+                  value: savings ? formatCurrency(savings.monthlySavings, currency) : "—",
+                  tone: savings && savings.monthlySavings > 0 ? "text-[#F97373]" : "text-[#F9FAFB]",
+                  detail: savings && savings.unusedCount > 0 ? `${savings.unusedCount} items likely unused` : "No unused items detected",
+                },
+                {
+                  label: "Category leader",
+                  value: topCategory?.category ?? "—",
+                  tone: "text-[#38BDF8]",
+                  detail: topCategory ? `${formatCurrency(topCategory.total, currency)} / month` : "Waiting for enough data",
+                },
+              ].map((item) => (
+                <div key={item.label} className="glass-hover rounded-3xl p-5">
+                  <p className="text-xs uppercase tracking-[0.2em] text-[#9CA3AF] mb-2">{item.label}</p>
+                  <p className={cn("text-3xl font-semibold tracking-tight mb-2", item.tone)}>{item.value}</p>
+                  <p className="text-sm text-[#9CA3AF]">{item.detail}</p>
+                </div>
+              ))}
+            </section>
+
+            <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+              <div className="glass-hover rounded-3xl p-6">
+                <div className="flex items-center justify-between mb-5">
+                  <div>
+                    <h2 className="text-xl font-semibold text-[#F9FAFB]">Upcoming charges</h2>
+                    <p className="text-sm text-[#9CA3AF]">Your next seven renewals in chronological order</p>
+                  </div>
+                  <Link href="/subscriptions" className="text-sm text-[#38BDF8] hover:text-[#7DD3FC] transition-colors">
+                    Manage list
+                  </Link>
+                </div>
+
+                {upcomingCharges.length === 0 ? (
+                  <StatusBanner tone="neutral" title="Nothing scheduled">
+                    No active subscriptions are due in the next 30 days.
+                  </StatusBanner>
+                ) : (
+                  <div className="space-y-3">
+                    {upcomingCharges.slice(0, 7).map((subscription) => {
+                      const daysUntil = getDaysUntil(subscription.nextChargeDate);
+                      return (
+                        <Link
+                          key={subscription.id}
+                          href={`/subscriptions/${subscription.id}`}
+                          className="glass-light rounded-2xl p-4 flex items-center justify-between gap-4 hover:bg-white/8 transition-colors"
+                        >
+                          <div className="min-w-0">
+                            <p className="text-[#F9FAFB] font-medium truncate">{subscription.name}</p>
+                            <p className="text-sm text-[#9CA3AF]">
+                              {formatDateShort(subscription.nextChargeDate)}
+                            </p>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <p className="text-sm font-semibold text-[#F9FAFB]">
+                              {formatCurrency(subscription.price, currency)}
+                            </p>
+                            <Tag
+                              variant={daysUntil <= 2 ? "error" : daysUntil <= 7 ? "warning" : "info"}
+                              size="sm"
+                            >
+                              {daysUntil <= 0 ? "Today" : daysUntil === 1 ? "Tomorrow" : `${daysUntil} days`}
+                            </Tag>
+                          </div>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div className="grid gap-6">
+                <div className="glass-hover rounded-3xl p-6">
+                  <h2 className="text-xl font-semibold text-[#F9FAFB] mb-1">Category concentration</h2>
+                  <p className="text-sm text-[#9CA3AF] mb-5">Where your monthly recurring budget is concentrated</p>
+                  {categoryData.length > 0 ? (
+                    <DonutChart data={categoryData} />
+                  ) : (
+                    <StatusBanner tone="neutral" title="No category data yet">
+                      Add subscriptions with categories to understand where spending clusters.
+                    </StatusBanner>
+                  )}
+                </div>
+
+                <div className="glass-hover rounded-3xl p-6">
+                  <h2 className="text-xl font-semibold text-[#F9FAFB] mb-1">Smart signals</h2>
+                  <p className="text-sm text-[#9CA3AF] mb-5">Useful changes and risks detected from current usage</p>
+                  {alerts.length > 0 ? (
+                    <div className="space-y-3">
+                      {alerts.slice(0, 4).map((alert, index) => (
+                        <StatusBanner
+                          key={`${alert.type}-${index}`}
+                          tone={alert.type === "UNUSED" ? "error" : alert.type === "PRECHARGE" ? "info" : "neutral"}
+                          title={alert.type === "UNUSED" ? "Unused subscription" : alert.type === "PRECHARGE" ? "Upcoming charge" : "Insight"}
+                        >
+                          {alert.message}
+                        </StatusBanner>
+                      ))}
+                    </div>
+                  ) : (
+                    <StatusBanner tone="success" title="No urgent anomalies">
+                      Nothing looks unusually risky right now. Your recurring spend appears stable.
+                    </StatusBanner>
+                  )}
+                </div>
+              </div>
+            </section>
+
+            <section className="glass-hover rounded-3xl p-6">
+              <h2 className="text-xl font-semibold text-[#F9FAFB] mb-1">Spending trend</h2>
+              <p className="text-sm text-[#9CA3AF] mb-5">Six-month view of recurring expense movement</p>
+              {chartData.length > 0 ? (
+                <Chart data={chartData} dataKey="value" type="area" color="#4ADE80" />
+              ) : (
+                <StatusBanner tone="neutral" title="Waiting for trend data">
+                  A few subscriptions are enough to start building a useful monthly history.
+                </StatusBanner>
+              )}
+            </section>
           </div>
         </div>
       </AppShell>

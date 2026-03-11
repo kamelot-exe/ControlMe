@@ -1,4 +1,4 @@
-import type { Currency } from '@/shared/types';
+import type { Currency } from "@/shared/types";
 
 export interface AuthenticatedUser {
   id: string;
@@ -6,4 +6,3 @@ export interface AuthenticatedUser {
   currency: Currency;
   createdAt: Date | string;
 }
-

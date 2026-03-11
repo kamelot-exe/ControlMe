@@ -1,15 +1,15 @@
-import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
-import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
-import { ScheduleModule } from '@nestjs/schedule';
-import { APP_GUARD } from '@nestjs/core';
-import { AuthModule } from './auth/auth.module';
-import { SubscriptionsModule } from './subscriptions/subscriptions.module';
-import { AnalyticsModule } from './analytics/analytics.module';
-import { ExportModule } from './export/export.module';
-import { PrismaModule } from './prisma/prisma.module';
-import { NotificationsModule } from './notifications/notifications.module';
-import { LoggerMiddleware } from './common/middleware/logger.middleware';
+import { MiddlewareConsumer, Module, NestModule } from "@nestjs/common";
+import { ConfigModule } from "@nestjs/config";
+import { ThrottlerModule, ThrottlerGuard } from "@nestjs/throttler";
+import { ScheduleModule } from "@nestjs/schedule";
+import { APP_GUARD } from "@nestjs/core";
+import { AuthModule } from "./auth/auth.module";
+import { SubscriptionsModule } from "./subscriptions/subscriptions.module";
+import { AnalyticsModule } from "./analytics/analytics.module";
+import { ExportModule } from "./export/export.module";
+import { PrismaModule } from "./prisma/prisma.module";
+import { NotificationsModule } from "./notifications/notifications.module";
+import { LoggerMiddleware } from "./common/middleware/logger.middleware";
 
 @Module({
   imports: [
@@ -17,7 +17,7 @@ import { LoggerMiddleware } from './common/middleware/logger.middleware';
     ScheduleModule.forRoot(),
     ThrottlerModule.forRoot([
       {
-        name: 'global',
+        name: "global",
         ttl: 60000,
         limit: 100,
       },
@@ -38,6 +38,6 @@ import { LoggerMiddleware } from './common/middleware/logger.middleware';
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(LoggerMiddleware).forRoutes('*');
+    consumer.apply(LoggerMiddleware).forRoutes("*");
   }
 }

@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { X, Save, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Save, Trash2, X } from "lucide-react";
 import type { Subscription } from "@/shared/types";
-import { useUpdateSubscription, useDeleteSubscription } from "@/hooks/use-subscriptions";
+import { useDeleteSubscription, useUpdateSubscription } from "@/hooks/use-subscriptions";
 
 const CATEGORIES = [
   "Streaming",
@@ -23,9 +23,12 @@ interface SubscriptionDrawerProps {
   onClose: () => void;
 }
 
-export function SubscriptionDrawer({ subscription, onClose }: SubscriptionDrawerProps) {
-  const updateSub = useUpdateSubscription();
-  const deleteSub = useDeleteSubscription();
+export function SubscriptionDrawer({
+  subscription,
+  onClose,
+}: SubscriptionDrawerProps) {
+  const updateSubscription = useUpdateSubscription();
+  const deleteSubscription = useDeleteSubscription();
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const [form, setForm] = useState({
@@ -40,70 +43,73 @@ export function SubscriptionDrawer({ subscription, onClose }: SubscriptionDrawer
   });
 
   useEffect(() => {
-    if (subscription) {
-      setForm({
-        name: subscription.name ?? "",
-        price: subscription.price ?? 0,
-        category: subscription.category ?? "Other",
-        billingPeriod: (subscription.billingPeriod as "MONTHLY" | "YEARLY") ?? "MONTHLY",
-        nextChargeDate: subscription.nextChargeDate
-          ? new Date(subscription.nextChargeDate).toISOString().slice(0, 10)
-          : "",
-        isActive: subscription.isActive ?? true,
-        websiteUrl: (subscription as any).websiteUrl ?? "",
-        notes: (subscription as any).notes ?? "",
-      });
-      setConfirmDelete(false);
-    }
+    if (!subscription) return;
+
+    setForm({
+      name: subscription.name ?? "",
+      price: subscription.price ?? 0,
+      category: subscription.category ?? "Other",
+      billingPeriod: subscription.billingPeriod ?? "MONTHLY",
+      nextChargeDate: subscription.nextChargeDate
+        ? new Date(subscription.nextChargeDate).toISOString().slice(0, 10)
+        : "",
+      isActive: subscription.isActive ?? true,
+      websiteUrl: subscription.websiteUrl ?? "",
+      notes: subscription.notes ?? "",
+    });
+    setConfirmDelete(false);
   }, [subscription]);
 
-  const isOpen = !!subscription;
+  const isOpen = Boolean(subscription);
 
-  const handleSave = async () => {
+  async function handleSave() {
     if (!subscription) return;
+
     try {
-      await updateSub.mutateAsync({
+      await updateSubscription.mutateAsync({
         id: subscription.id,
         data: {
           name: form.name,
           price: Number(form.price),
           category: form.category,
           billingPeriod: form.billingPeriod,
-          nextChargeDate: form.nextChargeDate ? new Date(form.nextChargeDate).toISOString() : undefined,
+          nextChargeDate: form.nextChargeDate
+            ? new Date(form.nextChargeDate).toISOString()
+            : undefined,
           isActive: form.isActive,
-          ...(form.websiteUrl ? { websiteUrl: form.websiteUrl } : {}),
-          ...(form.notes ? { notes: form.notes } : {}),
+          websiteUrl: form.websiteUrl || undefined,
+          notes: form.notes || undefined,
         },
       });
       onClose();
     } catch {
-      // error handled by mutation
+      // Mutation error is surfaced by the query layer.
     }
-  };
+  }
 
-  const handleDelete = async () => {
+  async function handleDelete() {
     if (!subscription) return;
+
     if (!confirmDelete) {
       setConfirmDelete(true);
       return;
     }
-    await deleteSub.mutateAsync(subscription.id);
+
+    await deleteSubscription.mutateAsync(subscription.id);
     onClose();
-  };
+  }
 
   return (
     <>
-      {/* Backdrop */}
       <div
-        className={`fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-opacity duration-200 ${
-          isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+        className={`fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-opacity duration-200 ${
+          isOpen ? "opacity-100" : "pointer-events-none opacity-0"
         }`}
         onClick={onClose}
       />
 
-      {/* Drawer */}
       <div
-        className={`fixed right-0 top-0 h-full w-full max-w-md z-50 flex flex-col transition-transform duration-300 ease-out ${
+        className={`fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col transition-transform duration-300 ease-out ${
           isOpen ? "translate-x-0" : "translate-x-full"
         }`}
         style={{
@@ -111,37 +117,33 @@ export function SubscriptionDrawer({ subscription, onClose }: SubscriptionDrawer
           borderLeft: "1px solid rgba(255,255,255,0.12)",
         }}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-5 border-b border-white/10">
-          <h2 className="text-lg font-bold text-[#F9FAFB] tracking-tight">Quick Edit</h2>
+        <div className="flex items-center justify-between border-b border-white/10 px-6 py-5">
+          <h2 className="text-lg font-bold tracking-tight text-[#F9FAFB]">Quick edit</h2>
           <button
             onClick={onClose}
-            className="p-2 rounded-xl text-[#9CA3AF] hover:text-[#F9FAFB] hover:bg-white/8 transition-all duration-150"
+            className="rounded-xl p-2 text-[#9CA3AF] transition-all duration-150 hover:bg-white/10 hover:text-[#F9FAFB]"
           >
             <X size={18} />
           </button>
         </div>
 
-        {/* Scrollable body */}
-        <div className="flex-1 overflow-y-auto px-6 py-6 space-y-5">
-          {/* Name */}
+        <div className="flex-1 space-y-5 overflow-y-auto px-6 py-6">
           <div>
-            <label className="block text-xs font-semibold text-[#9CA3AF] uppercase tracking-wider mb-2">
+            <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-[#9CA3AF]">
               Name
             </label>
             <input
               type="text"
               value={form.name}
-              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-              className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-[#F9FAFB] placeholder:text-[#6B7280] focus:outline-none focus:border-[#4ADE80]/50 transition-all duration-150 text-sm"
-              placeholder="Netflix, Spotify…"
+              onChange={(event) => setForm((value) => ({ ...value, name: event.target.value }))}
+              className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-[#F9FAFB] placeholder:text-[#6B7280] transition-all duration-150 focus:border-[#4ADE80]/50 focus:outline-none"
+              placeholder="Netflix, Spotify..."
             />
           </div>
 
-          {/* Price + Billing */}
           <div className="flex gap-3">
             <div className="flex-1">
-              <label className="block text-xs font-semibold text-[#9CA3AF] uppercase tracking-wider mb-2">
+              <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-[#9CA3AF]">
                 Price
               </label>
               <input
@@ -149,20 +151,29 @@ export function SubscriptionDrawer({ subscription, onClose }: SubscriptionDrawer
                 step="0.01"
                 min="0"
                 value={form.price}
-                onChange={(e) => setForm((f) => ({ ...f, price: parseFloat(e.target.value) || 0 }))}
-                className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-[#F9FAFB] focus:outline-none focus:border-[#4ADE80]/50 transition-all duration-150 text-sm"
+                onChange={(event) =>
+                  setForm((value) => ({
+                    ...value,
+                    price: parseFloat(event.target.value) || 0,
+                  }))
+                }
+                className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-[#F9FAFB] transition-all duration-150 focus:border-[#4ADE80]/50 focus:outline-none"
               />
             </div>
+
             <div className="flex-1">
-              <label className="block text-xs font-semibold text-[#9CA3AF] uppercase tracking-wider mb-2">
+              <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-[#9CA3AF]">
                 Billing
               </label>
               <select
                 value={form.billingPeriod}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, billingPeriod: e.target.value as "MONTHLY" | "YEARLY" }))
+                onChange={(event) =>
+                  setForm((value) => ({
+                    ...value,
+                    billingPeriod: event.target.value as "MONTHLY" | "YEARLY",
+                  }))
                 }
-                className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-[#F9FAFB] focus:outline-none focus:border-[#4ADE80]/50 transition-all duration-150 text-sm cursor-pointer"
+                className="w-full cursor-pointer rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-[#F9FAFB] transition-all duration-150 focus:border-[#4ADE80]/50 focus:outline-none"
               >
                 <option value="MONTHLY">Monthly</option>
                 <option value="YEARLY">Yearly</option>
@@ -170,80 +181,79 @@ export function SubscriptionDrawer({ subscription, onClose }: SubscriptionDrawer
             </div>
           </div>
 
-          {/* Category */}
           <div>
-            <label className="block text-xs font-semibold text-[#9CA3AF] uppercase tracking-wider mb-2">
+            <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-[#9CA3AF]">
               Category
             </label>
             <select
               value={form.category}
-              onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
-              className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-[#F9FAFB] focus:outline-none focus:border-[#4ADE80]/50 transition-all duration-150 text-sm cursor-pointer"
+              onChange={(event) => setForm((value) => ({ ...value, category: event.target.value }))}
+              className="w-full cursor-pointer rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-[#F9FAFB] transition-all duration-150 focus:border-[#4ADE80]/50 focus:outline-none"
             >
-              {CATEGORIES.map((c) => (
-                <option key={c} value={c}>
-                  {c}
+              {CATEGORIES.map((category) => (
+                <option key={category} value={category}>
+                  {category}
                 </option>
               ))}
             </select>
           </div>
 
-          {/* Next Charge Date */}
           <div>
-            <label className="block text-xs font-semibold text-[#9CA3AF] uppercase tracking-wider mb-2">
-              Next Charge Date
+            <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-[#9CA3AF]">
+              Next charge date
             </label>
             <input
               type="date"
               value={form.nextChargeDate}
-              onChange={(e) => setForm((f) => ({ ...f, nextChargeDate: e.target.value }))}
-              className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-[#F9FAFB] focus:outline-none focus:border-[#4ADE80]/50 transition-all duration-150 text-sm"
+              onChange={(event) =>
+                setForm((value) => ({ ...value, nextChargeDate: event.target.value }))
+              }
+              className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-[#F9FAFB] transition-all duration-150 focus:border-[#4ADE80]/50 focus:outline-none"
               style={{ colorScheme: "dark" }}
             />
           </div>
 
-          {/* Website URL */}
           <div>
-            <label className="block text-xs font-semibold text-[#9CA3AF] uppercase tracking-wider mb-2">
+            <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-[#9CA3AF]">
               Website URL
             </label>
             <input
               type="url"
               value={form.websiteUrl}
-              onChange={(e) => setForm((f) => ({ ...f, websiteUrl: e.target.value }))}
-              className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-[#F9FAFB] placeholder:text-[#6B7280] focus:outline-none focus:border-[#4ADE80]/50 transition-all duration-150 text-sm"
+              onChange={(event) =>
+                setForm((value) => ({ ...value, websiteUrl: event.target.value }))
+              }
+              className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-[#F9FAFB] placeholder:text-[#6B7280] transition-all duration-150 focus:border-[#4ADE80]/50 focus:outline-none"
               placeholder="https://example.com"
             />
           </div>
 
-          {/* Notes */}
           <div>
-            <label className="block text-xs font-semibold text-[#9CA3AF] uppercase tracking-wider mb-2">
+            <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-[#9CA3AF]">
               Notes
             </label>
             <textarea
               value={form.notes}
-              onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+              onChange={(event) => setForm((value) => ({ ...value, notes: event.target.value }))}
               rows={3}
-              className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-[#F9FAFB] placeholder:text-[#6B7280] focus:outline-none focus:border-[#4ADE80]/50 transition-all duration-150 text-sm resize-none"
-              placeholder="Optional notes…"
+              className="w-full resize-none rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-[#F9FAFB] placeholder:text-[#6B7280] transition-all duration-150 focus:border-[#4ADE80]/50 focus:outline-none"
+              placeholder="Optional notes..."
             />
           </div>
 
-          {/* Active toggle */}
-          <div className="flex items-center justify-between p-4 bg-white/4 rounded-xl border border-white/8">
+          <div className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 p-4">
             <div>
               <p className="text-sm font-semibold text-[#F9FAFB]">Active</p>
-              <p className="text-xs text-[#9CA3AF] mt-0.5">Toggle subscription status</p>
+              <p className="mt-0.5 text-xs text-[#9CA3AF]">Toggle subscription status</p>
             </div>
             <button
-              onClick={() => setForm((f) => ({ ...f, isActive: !f.isActive }))}
-              className={`relative w-12 h-6 rounded-full transition-colors duration-200 ${
+              onClick={() => setForm((value) => ({ ...value, isActive: !value.isActive }))}
+              className={`relative h-6 w-12 rounded-full transition-colors duration-200 ${
                 form.isActive ? "bg-[#4ADE80]" : "bg-white/15"
               }`}
             >
               <span
-                className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${
+                className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 ${
                   form.isActive ? "translate-x-6" : "translate-x-0"
                 }`}
               />
@@ -251,31 +261,28 @@ export function SubscriptionDrawer({ subscription, onClose }: SubscriptionDrawer
           </div>
         </div>
 
-        {/* Footer actions */}
-        <div className="px-6 py-5 border-t border-white/10 space-y-3">
-          {/* Save */}
+        <div className="space-y-3 border-t border-white/10 px-6 py-5">
           <button
             onClick={handleSave}
-            disabled={updateSub.isPending}
-            className="w-full flex items-center justify-center gap-2 py-3 bg-[#4ADE80] text-[#060B16] font-bold rounded-xl hover:bg-[#4ADE80]/90 transition-all duration-150 active:scale-[0.97] disabled:opacity-50 text-sm"
+            disabled={updateSubscription.isPending}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#4ADE80] py-3 text-sm font-bold text-[#060B16] transition-all duration-150 hover:bg-[#4ADE80]/90 disabled:opacity-50"
           >
             <Save size={15} />
-            {updateSub.isPending ? "Saving…" : "Save changes"}
+            {updateSubscription.isPending ? "Saving..." : "Save changes"}
           </button>
 
-          {/* Delete */}
           <button
             onClick={handleDelete}
-            disabled={deleteSub.isPending}
-            className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold transition-all duration-150 active:scale-[0.97] disabled:opacity-50 text-sm border ${
+            disabled={deleteSubscription.isPending}
+            className={`flex w-full items-center justify-center gap-2 rounded-xl border py-3 text-sm font-semibold transition-all duration-150 disabled:opacity-50 ${
               confirmDelete
-                ? "bg-[#F97373]/15 border-[#F97373]/40 text-[#F97373]"
-                : "border-white/10 text-[#9CA3AF] hover:text-[#F97373] hover:border-[#F97373]/30 hover:bg-[#F97373]/8"
+                ? "border-[#F97373]/40 bg-[#F97373]/15 text-[#F97373]"
+                : "border-white/10 text-[#9CA3AF] hover:border-[#F97373]/30 hover:bg-[#F97373]/8 hover:text-[#F97373]"
             }`}
           >
             <Trash2 size={15} />
-            {deleteSub.isPending
-              ? "Deleting…"
+            {deleteSubscription.isPending
+              ? "Deleting..."
               : confirmDelete
               ? "Tap again to confirm delete"
               : "Delete subscription"}

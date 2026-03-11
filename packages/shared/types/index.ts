@@ -18,7 +18,17 @@ export interface PaginatedResponse<T> {
 
 export type BillingPeriod = "MONTHLY" | "YEARLY";
 
-export type Currency = "USD" | "EUR" | "GBP" | "RUB" | "JPY";
+export type Currency =
+  | "USD"
+  | "EUR"
+  | "GBP"
+  | "RUB"
+  | "JPY"
+  | "CAD"
+  | "AUD"
+  | "CHF"
+  | "CNY"
+  | "INR";
 
 export type UsageStatus = "active" | "at_risk" | "unused";
 
@@ -48,6 +58,7 @@ export interface Subscription {
   billingPeriod: BillingPeriod;
   nextChargeDate: Date | string;
   category: string;
+  websiteUrl?: string | null;
   notes?: string;
   isActive: boolean;
   createdAt?: Date | string;
@@ -76,6 +87,7 @@ export interface CreateSubscriptionDto {
   billingPeriod: BillingPeriod;
   nextChargeDate: Date | string;
   category: string;
+  websiteUrl?: string;
   notes?: string;
 }
 
@@ -85,6 +97,7 @@ export interface UpdateSubscriptionDto {
   billingPeriod?: BillingPeriod;
   nextChargeDate?: Date | string;
   category?: string;
+  websiteUrl?: string;
   notes?: string;
   isActive?: boolean;
 }

@@ -1,42 +1,54 @@
 "use client";
+
 import Link from "next/link";
-import { PlusCircle, CreditCard, Bell, BarChart2, ArrowRight } from "lucide-react";
+import { ArrowRight, BarChart2, Bell, CreditCard, PlusCircle } from "lucide-react";
 
 const steps = [
-  { icon: CreditCard, title: "Add subscriptions", desc: "Netflix, Spotify, AWS — anything recurring" },
-  { icon: Bell, title: "Get smart alerts", desc: "We'll warn you before every charge" },
-  { icon: BarChart2, title: "See the full picture", desc: "Analytics, trends, and what you can save" },
+  {
+    icon: CreditCard,
+    title: "Add subscriptions",
+    desc: "Netflix, Spotify, AWS, anything recurring",
+  },
+  {
+    icon: Bell,
+    title: "Get smart alerts",
+    desc: "ControlMe warns you before upcoming charges",
+  },
+  {
+    icon: BarChart2,
+    title: "See the full picture",
+    desc: "Review trends, category mix, and savings potential",
+  },
 ];
 
 export function OnboardingEmpty() {
   return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4 animate-fade-in">
-      {/* Icon */}
-      <div className="w-16 h-16 rounded-2xl bg-[#4ADE80]/10 border border-[#4ADE80]/20 flex items-center justify-center mb-6">
+    <div className="flex min-h-[60vh] flex-col items-center justify-center px-4 text-center animate-fade-in">
+      <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl border border-[#4ADE80]/20 bg-[#4ADE80]/10">
         <CreditCard size={28} className="text-[#4ADE80]" />
       </div>
 
-      <h2 className="text-3xl font-black tracking-tight text-[#F9FAFB] mb-3">
+      <h2 className="mb-3 text-3xl font-black tracking-tight text-[#F9FAFB]">
         Welcome to ControlMe
       </h2>
-      <p className="text-[#9CA3AF] text-base max-w-md leading-relaxed mb-10">
-        You're all set. Add your first subscription to start tracking your spending and get smart alerts.
+      <p className="mb-10 max-w-md text-base leading-relaxed text-[#9CA3AF]">
+        You&apos;re all set. Add your first subscription to start tracking recurring spend and
+        surface useful alerts.
       </p>
 
-      {/* Steps */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full max-w-2xl mb-10">
-        {steps.map((step, i) => {
+      <div className="mb-10 grid w-full max-w-2xl grid-cols-1 gap-4 sm:grid-cols-3">
+        {steps.map((step, index) => {
           const Icon = step.icon;
           return (
             <div key={step.title} className="glass-light rounded-2xl p-5 text-left">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-6 h-6 rounded-full bg-[#4ADE80]/15 flex items-center justify-center text-[10px] font-bold text-[#4ADE80]">
-                  {i + 1}
+              <div className="mb-3 flex items-center gap-2">
+                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-[#4ADE80]/15 text-[10px] font-bold text-[#4ADE80]">
+                  {index + 1}
                 </div>
                 <Icon size={16} className="text-[#4ADE80]" />
               </div>
               <p className="text-sm font-semibold text-[#F9FAFB]">{step.title}</p>
-              <p className="text-xs text-[#9CA3AF] mt-1">{step.desc}</p>
+              <p className="mt-1 text-xs text-[#9CA3AF]">{step.desc}</p>
             </div>
           );
         })}
@@ -44,7 +56,7 @@ export function OnboardingEmpty() {
 
       <Link
         href="/subscriptions/new"
-        className="inline-flex items-center gap-2 bg-[#4ADE80] text-[#060B16] font-bold px-8 py-3.5 rounded-xl hover:bg-[#4ADE80]/90 transition-all duration-150 active:scale-[0.97]"
+        className="inline-flex items-center gap-2 rounded-xl bg-[#4ADE80] px-8 py-3.5 font-bold text-[#060B16] transition-all duration-150 hover:bg-[#4ADE80]/90"
       >
         <PlusCircle size={18} />
         Add your first subscription

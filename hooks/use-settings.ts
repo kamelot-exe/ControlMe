@@ -18,7 +18,7 @@ export function useUpdateNotificationSettings() {
     Partial<NotificationSettings>
   >({
     mutationFn: (data: Partial<NotificationSettings>) =>
-      apiClient.put<NotificationSettings>("/settings/notifications", data),
+      apiClient.patch<NotificationSettings>("/settings/notifications", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["settings", "notifications"] });
     },

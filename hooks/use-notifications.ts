@@ -2,7 +2,11 @@ import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import type { ApiResponse } from "@/shared/types";
 
-export type NotificationAlertType = "PRECHARGE" | "UNUSED" | "SPENDING_INCREASE";
+export type NotificationAlertType =
+  | "PRECHARGE"
+  | "UNUSED"
+  | "SPENDING_INCREASE"
+  | "DUPLICATE";
 
 export interface NotificationAlert {
   type: NotificationAlertType;

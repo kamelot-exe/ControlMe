@@ -1,7 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
-import { PrismaService } from '../prisma/prisma.service';
-import { EmailService } from './email.service';
+import { Injectable, Logger } from "@nestjs/common";
+import { Cron } from "@nestjs/schedule";
+import { PrismaService } from "../prisma/prisma.service";
+import { EmailService } from "./email.service";
 
 @Injectable()
 export class EmailSchedulerService {
@@ -17,12 +17,16 @@ export class EmailSchedulerService {
    * Finds users whose subscriptions are charging within their prechargeReminderDays
    * window and sends them a charge-reminder email.
    */
-  @Cron('0 8 * * *', { name: 'daily-charge-reminders', timeZone: 'UTC' })
+  @Cron("0 8 * * *", { name: "daily-charge-reminders", timeZone: "UTC" })
   async sendDailyChargeReminders(): Promise<void> {
-    this.logger.log('Running daily charge-reminder job…');
+    this.logger.log("Running daily charge-reminder job…");
 
     const today = new Date();
-    const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const startOfToday = new Date(
+      today.getFullYear(),
+      today.getMonth(),
+      today.getDate(),
+    );
 
     // Pull every user that has notification settings + an email
     const usersWithSettings = await this.prisma.notificationSettings.findMany({
@@ -52,7 +56,7 @@ export class EmailSchedulerService {
             lte: cutoff,
           },
         },
-        orderBy: { nextChargeDate: 'asc' },
+        orderBy: { nextChargeDate: "asc" },
       });
 
       if (upcoming.length === 0) {
@@ -72,16 +76,16 @@ export class EmailSchedulerService {
         return {
           name: sub.name,
           price: Number(sub.price),
-          currency: user.currency ?? 'USD',
+          currency: user.currency ?? "USD",
           daysUntil,
         };
       });
 
-      const html = EmailService.buildChargeReminderHtml('', items);
+      const html = EmailService.buildChargeReminderHtml("", items);
 
       await this.email.send({
         to: user.email,
-        subject: `ControlMe: ${upcoming.length} subscription${upcoming.length > 1 ? 's' : ''} charging soon`,
+        subject: `ControlMe: ${upcoming.length} subscription${upcoming.length > 1 ? "s" : ""} charging soon`,
         html,
       });
 

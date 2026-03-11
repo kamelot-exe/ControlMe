@@ -31,7 +31,7 @@ export function DonutChart({ data, className }: DonutChartProps) {
         <div className="glass-light rounded-xl p-3 border border-white/20">
           <p className="text-sm font-semibold text-foreground">{payload[0].name}</p>
           <p className="text-sm text-foreground/80">
-            ${payload[0].value.toFixed(2)}
+            {payload[0].value.toFixed(2)}
           </p>
         </div>
       );

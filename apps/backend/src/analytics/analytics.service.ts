@@ -1,5 +1,5 @@
-import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { Injectable } from "@nestjs/common";
+import { PrismaService } from "../prisma/prisma.service";
 
 @Injectable()
 export class AnalyticsService {
@@ -19,12 +19,12 @@ export class AnalyticsService {
 
     subscriptions.forEach((sub) => {
       const monthlyPrice =
-        sub.billingPeriod === 'MONTHLY'
+        sub.billingPeriod === "MONTHLY"
           ? Number(sub.price)
           : Number(sub.price) / 12;
 
       const yearlyPrice =
-        sub.billingPeriod === 'YEARLY'
+        sub.billingPeriod === "YEARLY"
           ? Number(sub.price)
           : Number(sub.price) * 12;
 
@@ -80,7 +80,7 @@ export class AnalyticsService {
 
       if (isUnused) {
         const monthlyPrice =
-          sub.billingPeriod === 'MONTHLY'
+          sub.billingPeriod === "MONTHLY"
             ? Number(sub.price)
             : Number(sub.price) / 12;
         monthlySavings += monthlyPrice;
@@ -103,7 +103,15 @@ export class AnalyticsService {
 
     for (let i = 5; i >= 0; i--) {
       const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const endOfMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999);
+      const endOfMonth = new Date(
+        date.getFullYear(),
+        date.getMonth() + 1,
+        0,
+        23,
+        59,
+        59,
+        999,
+      );
 
       const subscriptions = await this.prisma.subscription.findMany({
         where: {
@@ -116,13 +124,13 @@ export class AnalyticsService {
       let total = 0;
       for (const sub of subscriptions) {
         const monthlyPrice =
-          sub.billingPeriod === 'MONTHLY'
+          sub.billingPeriod === "MONTHLY"
             ? Number(sub.price)
             : Number(sub.price) / 12;
         total += monthlyPrice;
       }
 
-      const monthName = date.toLocaleString('en-US', { month: 'short' });
+      const monthName = date.toLocaleString("en-US", { month: "short" });
       months.push({ month: monthName, total: Math.round(total * 100) / 100 });
     }
 

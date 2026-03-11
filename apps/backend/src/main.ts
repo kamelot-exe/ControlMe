@@ -1,18 +1,18 @@
-import { NestFactory } from '@nestjs/core';
-import { ValidationPipe, Logger } from '@nestjs/common';
-import { AppModule } from './app.module';
-import { TransformInterceptor } from './common/interceptors/transform.interceptor';
-import helmet from 'helmet';
+import { NestFactory } from "@nestjs/core";
+import { ValidationPipe, Logger } from "@nestjs/common";
+import { AppModule } from "./app.module";
+import { TransformInterceptor } from "./common/interceptors/transform.interceptor";
+import helmet from "helmet";
 
-const logger = new Logger('Bootstrap');
+const logger = new Logger("Bootstrap");
 
 async function bootstrap() {
   if (!process.env.JWT_SECRET) {
-    throw new Error('JWT_SECRET environment variable is required');
+    throw new Error("JWT_SECRET environment variable is required");
   }
 
   const app = await NestFactory.create(AppModule, {
-    logger: ['error', 'warn', 'log'],
+    logger: ["error", "warn", "log"],
   });
 
   // Security headers
@@ -20,7 +20,9 @@ async function bootstrap() {
 
   // Enable CORS for client applications
   app.enableCors({
-    origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'],
+    origin: process.env.ALLOWED_ORIGINS?.split(",") || [
+      "http://localhost:3000",
+    ],
     credentials: true,
   });
 

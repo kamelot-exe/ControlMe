@@ -44,7 +44,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
         <p className="text-sm font-semibold text-foreground mb-2">{label}</p>
         {payload.map((entry: any, index: number) => (
           <p key={index} className="text-sm text-foreground/80" style={{ color: entry.color }}>
-            {entry.name}: {typeof entry.value === 'number' ? `$${entry.value.toFixed(2)}` : entry.value}
+            {entry.name}: {typeof entry.value === "number" ? entry.value.toFixed(2) : entry.value}
           </p>
         ))}
       </div>

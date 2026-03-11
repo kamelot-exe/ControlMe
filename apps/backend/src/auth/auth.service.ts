@@ -4,13 +4,13 @@ import {
   ConflictException,
   BadRequestException,
   NotFoundException,
-} from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
-import * as bcrypt from 'bcrypt';
-import * as crypto from 'crypto';
-import { PrismaService } from '../prisma/prisma.service';
-import { RegisterDto } from './dto/register.dto';
-import { LoginDto } from './dto/login.dto';
+} from "@nestjs/common";
+import { JwtService } from "@nestjs/jwt";
+import * as bcrypt from "bcrypt";
+import * as crypto from "crypto";
+import { PrismaService } from "../prisma/prisma.service";
+import { RegisterDto } from "./dto/register.dto";
+import { LoginDto } from "./dto/login.dto";
 
 @Injectable()
 export class AuthService {
@@ -25,7 +25,7 @@ export class AuthService {
     });
 
     if (existingUser) {
-      throw new ConflictException('User with this email already exists');
+      throw new ConflictException("User with this email already exists");
     }
 
     const passwordHash = await bcrypt.hash(dto.password, 10);
@@ -34,7 +34,7 @@ export class AuthService {
       data: {
         email: dto.email,
         passwordHash,
-        currency: dto.currency || 'USD',
+        currency: dto.currency || "USD",
       },
     });
 
@@ -47,7 +47,8 @@ export class AuthService {
       },
     });
 
-    const { passwordHash: _, ...userWithoutPassword } = user;
+    const { passwordHash, ...userWithoutPassword } = user;
+    void passwordHash;
     const token = this.jwtService.sign({ sub: user.id, email: user.email });
 
     return {
@@ -62,16 +63,20 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException("Invalid credentials");
     }
 
-    const isPasswordValid = await bcrypt.compare(dto.password, user.passwordHash);
+    const isPasswordValid = await bcrypt.compare(
+      dto.password,
+      user.passwordHash,
+    );
 
     if (!isPasswordValid) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException("Invalid credentials");
     }
 
-    const { passwordHash: _, ...userWithoutPassword } = user;
+    const { passwordHash, ...userWithoutPassword } = user;
+    void passwordHash;
     const token = this.jwtService.sign({ sub: user.id, email: user.email });
 
     return {
@@ -89,7 +94,8 @@ export class AuthService {
       return null;
     }
 
-    const { passwordHash: _, ...userWithoutPassword } = user;
+    const { passwordHash, ...userWithoutPassword } = user;
+    void passwordHash;
     return userWithoutPassword;
   }
 
@@ -109,7 +115,13 @@ export class AuthService {
     return this.prisma.user.update({
       where: { id: userId },
       data: { budgetLimit },
-      select: { id: true, email: true, currency: true, budgetLimit: true, createdAt: true },
+      select: {
+        id: true,
+        email: true,
+        currency: true,
+        budgetLimit: true,
+        createdAt: true,
+      },
     });
   }
 
@@ -131,7 +143,7 @@ export class AuthService {
       return { token: null };
     }
 
-    const token = crypto.randomBytes(32).toString('hex');
+    const token = crypto.randomBytes(32).toString("hex");
     const expiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
     await this.prisma.user.update({
@@ -147,7 +159,7 @@ export class AuthService {
 
   async resetPassword(token: string, newPassword: string) {
     if (!token || !newPassword) {
-      throw new BadRequestException('Token and new password are required');
+      throw new BadRequestException("Token and new password are required");
     }
 
     const user = await this.prisma.user.findUnique({
@@ -155,11 +167,13 @@ export class AuthService {
     });
 
     if (!user || !user.passwordResetTokenExpiry) {
-      throw new BadRequestException('Invalid or expired reset token');
+      throw new BadRequestException("Invalid or expired reset token");
     }
 
     if (user.passwordResetTokenExpiry < new Date()) {
-      throw new BadRequestException('Reset token has expired. Please request a new one.');
+      throw new BadRequestException(
+        "Reset token has expired. Please request a new one.",
+      );
     }
 
     const passwordHash = await bcrypt.hash(newPassword, 10);
@@ -178,15 +192,22 @@ export class AuthService {
 
   // ─── Change Password ─────────────────────────────────────────────────────────
 
-  async changePassword(userId: string, currentPassword: string, newPassword: string) {
+  async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string,
+  ) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new NotFoundException('User not found');
+    if (!user) throw new NotFoundException("User not found");
 
     const valid = await bcrypt.compare(currentPassword, user.passwordHash);
-    if (!valid) throw new UnauthorizedException('Current password is incorrect');
+    if (!valid)
+      throw new UnauthorizedException("Current password is incorrect");
 
     if (newPassword.length < 8) {
-      throw new BadRequestException('New password must be at least 8 characters');
+      throw new BadRequestException(
+        "New password must be at least 8 characters",
+      );
     }
 
     const passwordHash = await bcrypt.hash(newPassword, 10);
@@ -201,15 +222,34 @@ export class AuthService {
   // ─── Change Currency ─────────────────────────────────────────────────────────
 
   async changeCurrency(userId: string, currency: string) {
-    const allowed = ['USD', 'EUR', 'GBP', 'RUB', 'JPY', 'CAD', 'AUD', 'CHF', 'CNY', 'INR'];
+    const allowed = [
+      "USD",
+      "EUR",
+      "GBP",
+      "RUB",
+      "JPY",
+      "CAD",
+      "AUD",
+      "CHF",
+      "CNY",
+      "INR",
+    ];
     if (!allowed.includes(currency.toUpperCase())) {
-      throw new BadRequestException(`Unsupported currency. Allowed: ${allowed.join(', ')}`);
+      throw new BadRequestException(
+        `Unsupported currency. Allowed: ${allowed.join(", ")}`,
+      );
     }
 
     return this.prisma.user.update({
       where: { id: userId },
       data: { currency: currency.toUpperCase() },
-      select: { id: true, email: true, currency: true, budgetLimit: true, createdAt: true },
+      select: {
+        id: true,
+        email: true,
+        currency: true,
+        budgetLimit: true,
+        createdAt: true,
+      },
     });
   }
 }

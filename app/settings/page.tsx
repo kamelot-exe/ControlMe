@@ -1,56 +1,144 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
-import { AppShell } from "@/components/layout/AppShell";
-import { SkeletonCard } from "@/components/ui/Skeleton";
-import { EmptyState } from "@/components/ui/EmptyState";
-import { ErrorState } from "@/components/ui/ErrorState";
-import { ConnectionError } from "@/components/errors/ConnectionError";
-import { Tag } from "@/components/ui/Tag";
+import { useQueryClient } from "@tanstack/react-query";
 import {
-  useMe,
-  useLogout,
-  useSetBudgetLimit,
-  useDeleteAccount,
-  useChangePassword,
+  Bell,
+  CreditCard,
+  Download,
+  KeyRound,
+  LogOut,
+  Mail,
+  RefreshCw,
+  Shield,
+  Trash2,
+  Upload,
+  Wallet,
+} from "lucide-react";
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { ConnectionError } from "@/components/errors/ConnectionError";
+import { AppShell } from "@/components/layout/AppShell";
+import { EmptyState, ErrorState, StatusBanner, Tag } from "@/components/ui";
+import { SkeletonCard } from "@/components/ui/Skeleton";
+import {
   useChangeCurrency,
+  useChangePassword,
+  useDeleteAccount,
+  useLogout,
+  useMe,
+  useSetBudgetLimit,
 } from "@/hooks/use-auth";
 import {
+  useExportPDF,
   useNotificationSettings,
   useUpdateNotificationSettings,
-  useExportPDF,
 } from "@/hooks/use-settings";
 import { useApiError } from "@/hooks/use-api-error";
 import { formatCurrency, formatDate } from "@/lib/utils/format";
+import { cn } from "@/lib/utils";
 import type { Currency } from "@/shared/types";
 
-const CURRENCY_SYMBOLS: Record<string, string> = {
-  USD: "$",
-  EUR: "€",
-  GBP: "£",
-  RUB: "₽",
-  JPY: "¥",
+const CURRENCIES: Currency[] = [
+  "USD",
+  "EUR",
+  "GBP",
+  "RUB",
+  "JPY",
+  "CAD",
+  "AUD",
+  "CHF",
+  "CNY",
+  "INR",
+];
+
+const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+
+const currencyNames: Record<Currency, string> = {
+  USD: "US Dollar",
+  EUR: "Euro",
+  GBP: "British Pound",
+  RUB: "Russian Ruble",
+  JPY: "Japanese Yen",
+  CAD: "Canadian Dollar",
+  AUD: "Australian Dollar",
+  CHF: "Swiss Franc",
+  CNY: "Chinese Yuan",
+  INR: "Indian Rupee",
 };
 
-function getCurrencySymbol(currency: string): string {
-  return CURRENCY_SYMBOLS[currency] ?? "$";
+function SectionCard({
+  title,
+  description,
+  icon: Icon,
+  children,
+  tone = "default",
+}: {
+  title: string;
+  description: string;
+  icon: React.ComponentType<{ className?: string }>;
+  children: React.ReactNode;
+  tone?: "default" | "danger";
+}) {
+  return (
+    <section
+      className={cn(
+        "rounded-[28px] border p-6 md:p-7 backdrop-blur-xl animate-slide-up",
+        tone === "danger"
+          ? "border-[#F87171]/25 bg-[linear-gradient(180deg,rgba(248,113,113,0.08),rgba(8,12,24,0.92))]"
+          : "border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.88),rgba(6,11,22,0.94))]"
+      )}
+    >
+      <div className="mb-6 flex items-start gap-4">
+        <div
+          className={cn(
+            "flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border",
+            tone === "danger"
+              ? "border-[#F87171]/30 bg-[#F87171]/10 text-[#F87171]"
+              : "border-white/10 bg-white/5 text-[#9BD6FF]"
+          )}
+        >
+          <Icon className="h-5 w-5" />
+        </div>
+        <div>
+          <h2 className="text-xl font-semibold text-[#F9FAFB]">{title}</h2>
+          <p className="mt-1 text-sm leading-relaxed text-[#94A3B8]">{description}</p>
+        </div>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function FieldLabel({
+  title,
+  hint,
+}: {
+  title: string;
+  hint: string;
+}) {
+  return (
+    <div className="space-y-1">
+      <p className="text-sm font-medium text-[#F9FAFB]">{title}</p>
+      <p className="text-sm text-[#94A3B8]">{hint}</p>
+    </div>
+  );
 }
 
 export default function SettingsPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   const userQuery = useMe();
   const settingsQuery = useNotificationSettings();
 
-  const updateSettings = useUpdateNotificationSettings();
-  const exportPDF = useExportPDF();
   const logout = useLogout();
+  const deleteAccount = useDeleteAccount();
   const setBudgetLimit = useSetBudgetLimit();
-  const deleteAccountMutation = useDeleteAccount();
   const changePassword = useChangePassword();
   const changeCurrency = useChangeCurrency();
+  const updateSettings = useUpdateNotificationSettings();
+  const exportPDF = useExportPDF();
 
   const userError = useApiError(userQuery);
   const settingsError = useApiError(settingsQuery);
@@ -59,190 +147,351 @@ export default function SettingsPage() {
   const settings = settingsQuery.data?.data;
   const currency = (user?.currency ?? "USD") as Currency;
 
-  // Notification form state
   const [smartAlerts, setSmartAlerts] = useState(true);
-  const [prechargedays, setPrechargedays] = useState(7);
-  const [notifFeedback, setNotifFeedback] = useState<string | null>(null);
+  const [prechargeDays, setPrechargeDays] = useState(3);
+  const [notificationsFeedback, setNotificationsFeedback] = useState<{
+    tone: "success" | "error";
+    message: string;
+  } | null>(null);
 
-  // Budget state
   const [budgetInput, setBudgetInput] = useState("");
-  const [isSavingBudget, setIsSavingBudget] = useState(false);
-  const [budgetFeedback, setBudgetFeedback] = useState<string | null>(null);
+  const [budgetFeedback, setBudgetFeedback] = useState<{
+    tone: "success" | "error";
+    message: string;
+  } | null>(null);
 
-  // Change password state
-  const [currentPw, setCurrentPw] = useState("");
-  const [newPw, setNewPw] = useState("");
-  const [confirmPw, setConfirmPw] = useState("");
-  const [pwFeedback, setPwFeedback] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [currencyInput, setCurrencyInput] = useState<Currency>("USD");
+  const [currencyFeedback, setCurrencyFeedback] = useState<{
+    tone: "success" | "error";
+    message: string;
+  } | null>(null);
 
-  // Change currency state
-  const [currencyInput, setCurrencyInput] = useState("");
-  const [currencyFeedback, setCurrencyFeedback] = useState<string | null>(null);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordFeedback, setPasswordFeedback] = useState<{
+    tone: "success" | "error";
+    message: string;
+  } | null>(null);
 
-  // Import state
-  const [importFeedback, setImportFeedback] = useState<string | null>(null);
+  const [importFeedback, setImportFeedback] = useState<{
+    tone: "success" | "error" | "info";
+    title: string;
+    message: string;
+  } | null>(null);
 
-  // Export state
-  const [exportFeedback, setExportFeedback] = useState<string | null>(null);
+  const [exportFeedback, setExportFeedback] = useState<{
+    tone: "success" | "error";
+    message: string;
+  } | null>(null);
 
-  // Danger zone state
+  const [reminderFeedback, setReminderFeedback] = useState<{
+    tone: "success" | "error";
+    message: string;
+  } | null>(null);
+
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
-  // Sync notification settings from query
   useEffect(() => {
     if (!settings) return;
     setSmartAlerts(settings.smartAlertsEnabled);
-    setPrechargedays(settings.prechargeReminderDays);
+    setPrechargeDays(settings.prechargeReminderDays);
   }, [settings]);
 
-  // Sync currency input from user data
-  useEffect(() => {
-    if (user?.currency) setCurrencyInput(user.currency);
-  }, [user?.currency]);
-
-  // Sync budget from user data
   useEffect(() => {
     if (!user) return;
+    setCurrencyInput((user.currency ?? "USD") as Currency);
     setBudgetInput(user.budgetLimit != null ? user.budgetLimit.toString() : "");
   }, [user]);
 
+  const prechargeError =
+    prechargeDays < 0 || prechargeDays > 30
+      ? "Choose a reminder window between 0 and 30 days."
+      : null;
+
+  const budgetValue = budgetInput.trim() === "" ? null : Number(budgetInput);
+  const budgetError =
+    budgetInput.trim() !== "" && (!Number.isFinite(budgetValue) || (budgetValue ?? 0) < 0)
+      ? "Budget must be a valid positive amount."
+      : null;
+
   const hasSettingsChanged =
     !!settings &&
-    (prechargedays !== settings.prechargeReminderDays ||
-      smartAlerts !== settings.smartAlertsEnabled);
+    (settings.smartAlertsEnabled !== smartAlerts ||
+      settings.prechargeReminderDays !== prechargeDays);
 
-  const prechargeError =
-    prechargedays < 0 || prechargedays > 30
-      ? "Reminder days must be between 0 and 30"
-      : undefined;
+  const isLoading = userQuery.isLoading || settingsQuery.isLoading;
+  const hasConnectionError =
+    userError.isConnectionError || settingsError.isConnectionError;
 
-  const handleSaveNotifications = async () => {
+  async function handleNotificationSave() {
     if (!settings || prechargeError) return;
-    setNotifFeedback(null);
+    setNotificationsFeedback(null);
+
     try {
       await updateSettings.mutateAsync({
         id: settings.id,
         userId: settings.userId,
-        prechargeReminderDays: prechargedays,
         smartAlertsEnabled: smartAlerts,
+        prechargeReminderDays: prechargeDays,
       });
-      setNotifFeedback("Notification settings saved.");
+      setNotificationsFeedback({
+        tone: "success",
+        message: "Notification preferences updated.",
+      });
     } catch {
-      setNotifFeedback("Unable to save settings. Please retry.");
+      setNotificationsFeedback({
+        tone: "error",
+        message: "Unable to save notification preferences right now.",
+      });
     }
-  };
+  }
 
-  const handleSaveBudget = async (override?: number | null) => {
-    setIsSavingBudget(true);
+  async function handleBudgetSave(nextValue?: number | null) {
+    const resolvedValue =
+      nextValue !== undefined ? nextValue : budgetInput.trim() === "" ? null : Number(budgetInput);
+
+    if (resolvedValue !== null && (!Number.isFinite(resolvedValue) || resolvedValue < 0)) {
+      setBudgetFeedback({
+        tone: "error",
+        message: "Enter a valid budget amount before saving.",
+      });
+      return;
+    }
+
     setBudgetFeedback(null);
-    try {
-      const value =
-        override !== undefined
-          ? override
-          : budgetInput.trim() === ""
-          ? null
-          : parseFloat(budgetInput);
-      await setBudgetLimit.mutateAsync({ budgetLimit: value });
-      setBudgetFeedback(
-        value == null ? "Budget limit removed." : "Budget limit saved."
-      );
-    } catch {
-      setBudgetFeedback("Unable to save budget limit. Please retry.");
-    } finally {
-      setIsSavingBudget(false);
-    }
-  };
 
-  const handleImportCsv = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setImportFeedback(null);
     try {
-      const text = await file.text();
-      const token = localStorage.getItem("auth_token");
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
-      const res = await fetch(`${apiUrl}/subscriptions/import`, {
+      await setBudgetLimit.mutateAsync({ budgetLimit: resolvedValue });
+      if (resolvedValue === null) {
+        setBudgetInput("");
+      }
+      setBudgetFeedback({
+        tone: "success",
+        message:
+          resolvedValue === null
+            ? "Monthly budget cleared."
+            : "Monthly budget updated.",
+      });
+    } catch {
+      setBudgetFeedback({
+        tone: "error",
+        message: "Budget change failed. Try again.",
+      });
+    }
+  }
+
+  async function handleCurrencySave() {
+    setCurrencyFeedback(null);
+    try {
+      await changeCurrency.mutateAsync({ currency: currencyInput });
+      setCurrencyFeedback({
+        tone: "success",
+        message: `Currency switched to ${currencyInput}.`,
+      });
+    } catch (error) {
+      setCurrencyFeedback({
+        tone: "error",
+        message: error instanceof Error ? error.message : "Unable to update currency.",
+      });
+    }
+  }
+
+  async function handlePasswordSave() {
+    setPasswordFeedback(null);
+
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setPasswordFeedback({
+        tone: "error",
+        message: "Complete all password fields first.",
+      });
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      setPasswordFeedback({
+        tone: "error",
+        message: "New password must be at least 8 characters long.",
+      });
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordFeedback({
+        tone: "error",
+        message: "Confirmation password does not match.",
+      });
+      return;
+    }
+
+    try {
+      await changePassword.mutateAsync({
+        currentPassword,
+        newPassword,
+      });
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setPasswordFeedback({
+        tone: "success",
+        message: "Password updated.",
+      });
+    } catch (error) {
+      setPasswordFeedback({
+        tone: "error",
+        message: error instanceof Error ? error.message : "Unable to change password.",
+      });
+    }
+  }
+
+  async function handleImportCsv(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setImportFeedback({
+      tone: "info",
+      title: "Import in progress",
+      message: `Reading ${file.name}...`,
+    });
+
+    try {
+      const csv = await file.text();
+      const response = await fetch(`${apiUrl}/subscriptions/import`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
         },
-        body: JSON.stringify({ csv: text }),
+        body: JSON.stringify({ csv }),
       });
-      const data = await res.json();
-      const result = data.data ?? data;
-      setImportFeedback(
-        `Imported ${result.imported} subscription${result.imported !== 1 ? "s" : ""}${result.errors?.length ? `. ${result.errors.length} error(s).` : "."}`
-      );
-      if (result.imported > 0) {
-        setTimeout(() => window.location.reload(), 1500);
-      }
-    } catch {
-      setImportFeedback("Failed to import. Check the CSV format and try again.");
-    } finally {
-      e.target.value = "";
-    }
-  };
 
-  const handleExportPDF = async () => {
+      if (!response.ok) {
+        throw new Error("Import failed");
+      }
+
+      const payload = await response.json();
+      const result = payload.data ?? payload;
+
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["subscriptions"] }),
+        queryClient.invalidateQueries({ queryKey: ["analytics"] }),
+      ]);
+
+      setImportFeedback({
+        tone: "success",
+        title: "Import completed",
+        message:
+          result.errors?.length > 0
+            ? `Added ${result.imported} subscriptions. ${result.errors.length} rows could not be imported.`
+            : `Added ${result.imported} subscriptions from CSV.`,
+      });
+    } catch {
+      setImportFeedback({
+        tone: "error",
+        title: "Import failed",
+        message: "Check the CSV structure and try again.",
+      });
+    } finally {
+      event.target.value = "";
+    }
+  }
+
+  async function handleExportCsv() {
+    setExportFeedback(null);
+    try {
+      const response = await fetch(`${apiUrl}/export/csv`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("Export failed");
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "subscriptions.csv";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      setExportFeedback({
+        tone: "success",
+        message: "CSV export downloaded.",
+      });
+    } catch {
+      setExportFeedback({
+        tone: "error",
+        message: "Unable to export CSV right now.",
+      });
+    }
+  }
+
+  async function handleExportPdf() {
     setExportFeedback(null);
     try {
       await exportPDF.mutateAsync();
-      setExportFeedback("PDF export started. Check your downloads.");
-    } catch {
-      setExportFeedback("Unable to export PDF. Please retry.");
-    }
-  };
-
-  const handleExportCsv = async () => {
-    setExportFeedback(null);
-    try {
-      const token = localStorage.getItem("auth_token");
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
-      const response = await fetch(`${apiUrl}/export/csv`, {
-        headers: { Authorization: `Bearer ${token}` },
+      setExportFeedback({
+        tone: "success",
+        message: "PDF report downloaded.",
       });
-      if (!response.ok) throw new Error("Failed to export CSV");
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "subscriptions.csv";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      setExportFeedback("CSV exported successfully.");
     } catch {
-      setExportFeedback("Unable to export CSV. Please retry.");
+      setExportFeedback({
+        tone: "error",
+        message: "Unable to export PDF right now.",
+      });
     }
-  };
+  }
 
-  const handleDeleteAccount = async () => {
-    setIsDeletingAccount(true);
+  async function handleReminderTrigger() {
+    setReminderFeedback(null);
     try {
-      await deleteAccountMutation.mutateAsync();
+      const response = await fetch(`${apiUrl}/notifications/trigger-reminders`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("Trigger failed");
+      }
+
+      setReminderFeedback({
+        tone: "success",
+        message: "Reminder job triggered. Check your inbox or server logs.",
+      });
+    } catch {
+      setReminderFeedback({
+        tone: "error",
+        message: "Unable to trigger reminders. Confirm the backend is available.",
+      });
+    }
+  }
+
+  async function handleDeleteAccount() {
+    try {
+      await deleteAccount.mutateAsync();
       localStorage.removeItem("auth_token");
       router.push("/login");
     } catch {
-      setIsDeletingAccount(false);
       setShowDeleteConfirm(false);
     }
-  };
-
-  const isLoading = userQuery.isLoading || settingsQuery.isLoading;
+  }
 
   if (isLoading) {
     return (
       <ProtectedRoute>
         <AppShell>
           <div className="p-8 md:p-10 lg:p-12">
-            <div className="max-w-4xl space-y-8 animate-fade-in">
-            <SkeletonCard />
-            <SkeletonCard />
-            <SkeletonCard />
-            <SkeletonCard />
+            <div className="max-w-6xl space-y-6">
+              <SkeletonCard />
+              <SkeletonCard />
+              <SkeletonCard />
             </div>
           </div>
         </AppShell>
@@ -250,530 +499,503 @@ export default function SettingsPage() {
     );
   }
 
-  const hasConnectionError =
-    userError.isConnectionError || settingsError.isConnectionError;
-
   return (
     <ProtectedRoute>
       <AppShell>
         <div className="p-8 md:p-10 lg:p-12">
-          <div className="max-w-4xl space-y-8 animate-fade-in">
-
-          {hasConnectionError && (
-            <ConnectionError
-              onRetry={() => {
-                userQuery.refetch();
-                settingsQuery.refetch();
-              }}
-            />
-          )}
-
-          {(userQuery.isError || settingsQuery.isError) && !hasConnectionError && (
-            <ErrorState
-              title="Unable to load settings"
-              message={
-                userError.errorMessage ||
-                settingsError.errorMessage ||
-                "Please try again."
-              }
-              onRetry={() => {
-                userQuery.refetch();
-                settingsQuery.refetch();
-              }}
-            />
-          )}
-
-          {/* Page Title */}
-          <div className="space-y-3 animate-slide-up">
-            <h1 className="text-5xl font-bold text-[#F9FAFB] tracking-tight">Settings</h1>
-            <p className="text-lg text-[#9CA3AF]">Manage your account and preferences</p>
-          </div>
-
-          {/* Account Section */}
-          <div
-            className="glass-hover rounded-3xl p-6 animate-slide-up"
-            style={{ animationDelay: "0.05s" }}
-          >
-            <h2 className="text-xl font-semibold text-[#F9FAFB] mb-1">Account Information</h2>
-            <p className="text-[#9CA3AF] text-sm mb-5">Your account details</p>
-
-            {!user ? (
-              <EmptyState
-                icon="User"
-                title="Account data unavailable"
-                description="Refresh the page to load account details."
+          <div className="mx-auto max-w-6xl space-y-8 animate-fade-in">
+            {hasConnectionError ? (
+              <ConnectionError
+                onRetry={() => {
+                  userQuery.refetch();
+                  settingsQuery.refetch();
+                }}
               />
-            ) : (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between glass-light rounded-2xl p-4">
-                  <div className="space-y-0.5">
-                    <p className="text-xs text-[#9CA3AF]">Email</p>
-                    <p className="text-[#F9FAFB] font-medium">{user.email || "Not available"}</p>
+            ) : null}
+
+            {(userQuery.isError || settingsQuery.isError) && !hasConnectionError ? (
+              <ErrorState
+                title="Unable to load settings"
+                message={
+                  userError.errorMessage ??
+                  settingsError.errorMessage ??
+                  "Please retry in a moment."
+                }
+                onRetry={() => {
+                  userQuery.refetch();
+                  settingsQuery.refetch();
+                }}
+              />
+            ) : null}
+
+            <section className="rounded-[32px] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.18),transparent_30%),linear-gradient(135deg,rgba(10,17,32,0.98),rgba(5,8,22,0.96))] p-7 md:p-8">
+              <div className="grid gap-8 lg:grid-cols-[1.4fr_0.9fr]">
+                <div className="space-y-4">
+                  <Tag variant="success" size="md">
+                    Preferences & control
+                  </Tag>
+                  <div className="space-y-3">
+                    <h1 className="text-4xl font-semibold tracking-tight text-[#F9FAFB] md:text-5xl">
+                      Keep your workspace quiet, clear, and under control.
+                    </h1>
+                    <p className="max-w-2xl text-base leading-relaxed text-[#A5B4C3] md:text-lg">
+                      Tune reminders, budgets, exports, and security from one place.
+                      Every action here is designed to keep ControlMe practical instead of noisy.
+                    </p>
                   </div>
                 </div>
-                <div className="flex items-center justify-between glass-light rounded-2xl p-4">
-                  <div className="space-y-0.5">
-                    <p className="text-xs text-[#9CA3AF]">Currency</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Tag variant="info" size="md">
-                        {user.currency || "USD"}
-                      </Tag>
+
+                <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <p className="text-xs uppercase tracking-[0.24em] text-[#6B7280]">
+                      Account
+                    </p>
+                    <p className="mt-3 text-sm font-medium text-[#F9FAFB]">
+                      {user?.email ?? "No email available"}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <p className="text-xs uppercase tracking-[0.24em] text-[#6B7280]">
+                      Currency
+                    </p>
+                    <p className="mt-3 text-2xl font-semibold text-[#F9FAFB]">{currency}</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <p className="text-xs uppercase tracking-[0.24em] text-[#6B7280]">
+                      Member since
+                    </p>
+                    <p className="mt-3 text-sm font-medium text-[#F9FAFB]">
+                      {user?.createdAt ? formatDate(user.createdAt) : "Unavailable"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+              <div className="space-y-6">
+                <SectionCard
+                  title="Notifications"
+                  description="Choose how early ControlMe should speak up, and keep alerts focused on useful signals."
+                  icon={Bell}
+                >
+                  {!settings ? (
+                    <EmptyState
+                      title="Notification settings unavailable"
+                      description="Refresh the page to load your reminder preferences."
+                    />
+                  ) : (
+                    <div className="space-y-5">
+                      <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 p-4">
+                        <FieldLabel
+                          title="Smart alerts"
+                          hint="Highlight duplicates, price changes, and subscriptions that look unused."
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setSmartAlerts((value) => !value)}
+                          className={cn(
+                            "relative h-6 w-11 rounded-full transition-colors",
+                            smartAlerts ? "bg-[#4ADE80]" : "bg-white/10"
+                          )}
+                          aria-label="Toggle smart alerts"
+                        >
+                          <span
+                            className={cn(
+                              "absolute top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-all",
+                              smartAlerts ? "left-6" : "left-1"
+                            )}
+                          />
+                        </button>
+                      </div>
+
+                      <div className="space-y-3">
+                        <FieldLabel
+                          title="Reminder lead time"
+                          hint="Choose how many days before a charge ControlMe should remind you."
+                        />
+                        <input
+                          type="number"
+                          min="0"
+                          max="30"
+                          value={prechargeDays}
+                          onChange={(event) => {
+                            const nextValue = parseInt(event.target.value, 10);
+                            setPrechargeDays(Number.isNaN(nextValue) ? 0 : nextValue);
+                          }}
+                          className={cn(
+                            "w-full rounded-2xl border bg-white/5 px-4 py-3 text-[#F9FAFB] outline-none transition",
+                            prechargeError
+                              ? "border-[#F97373]/40"
+                              : "border-white/10 focus:border-[#4ADE80]/35"
+                          )}
+                        />
+                        {prechargeError ? (
+                          <StatusBanner tone="error">{prechargeError}</StatusBanner>
+                        ) : (
+                          <p className="text-sm text-[#94A3B8]">
+                            Current reminder window: {prechargeDays} day
+                            {prechargeDays === 1 ? "" : "s"} before charge.
+                          </p>
+                        )}
+                      </div>
+
+                      {notificationsFeedback ? (
+                        <StatusBanner tone={notificationsFeedback.tone}>
+                          {notificationsFeedback.message}
+                        </StatusBanner>
+                      ) : null}
+
+                      <button
+                        type="button"
+                        onClick={handleNotificationSave}
+                        disabled={
+                          updateSettings.isPending || !hasSettingsChanged || !!prechargeError
+                        }
+                        className="rounded-2xl border border-[#4ADE80]/30 bg-[#4ADE80]/14 px-5 py-3 text-sm font-semibold text-[#4ADE80] transition hover:bg-[#4ADE80]/20 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        {updateSettings.isPending
+                          ? "Saving preferences..."
+                          : "Save notification settings"}
+                      </button>
+                    </div>
+                  )}
+                </SectionCard>
+
+                <SectionCard
+                  title="Monthly budget"
+                  description="Set a clear spending ceiling so subscription growth stays visible before it becomes a problem."
+                  icon={Wallet}
+                >
+                  <div className="space-y-4">
+                    <FieldLabel
+                      title="Budget target"
+                      hint="This is used across the dashboard to compare active monthly spend against your own limit."
+                    />
+                    <div className="flex flex-col gap-3 sm:flex-row">
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="0.00"
+                        value={budgetInput}
+                        onChange={(event) => setBudgetInput(event.target.value)}
+                        className={cn(
+                          "min-w-0 flex-1 rounded-2xl border bg-white/5 px-4 py-3 text-[#F9FAFB] outline-none transition",
+                          budgetError
+                            ? "border-[#F97373]/40"
+                            : "border-white/10 focus:border-[#4ADE80]/35"
+                        )}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleBudgetSave()}
+                        disabled={setBudgetLimit.isPending || !!budgetError}
+                        className="rounded-2xl bg-[#4ADE80] px-5 py-3 text-sm font-semibold text-[#04101A] transition hover:bg-[#74E6A1] disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {setBudgetLimit.isPending ? "Saving..." : "Save limit"}
+                      </button>
+                      {user?.budgetLimit != null ? (
+                        <button
+                          type="button"
+                          onClick={() => handleBudgetSave(null)}
+                          disabled={setBudgetLimit.isPending}
+                          className="rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-medium text-[#D3DBE4] transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          Remove
+                        </button>
+                      ) : null}
+                    </div>
+
+                    {budgetError ? (
+                      <StatusBanner tone="error">{budgetError}</StatusBanner>
+                    ) : null}
+
+                    {budgetFeedback ? (
+                      <StatusBanner tone={budgetFeedback.tone}>
+                        {budgetFeedback.message}
+                      </StatusBanner>
+                    ) : null}
+
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                      <p className="text-xs uppercase tracking-[0.24em] text-[#6B7280]">
+                        Current monthly limit
+                      </p>
+                      <p className="mt-3 text-2xl font-semibold text-[#F9FAFB]">
+                        {user?.budgetLimit != null
+                          ? formatCurrency(user.budgetLimit, currency)
+                          : "No budget set"}
+                      </p>
                     </div>
                   </div>
-                </div>
-                <div className="flex items-center justify-between glass-light rounded-2xl p-4">
-                  <div className="space-y-0.5">
-                    <p className="text-xs text-[#9CA3AF]">Member Since</p>
-                    <p className="text-[#F9FAFB] font-medium">
-                      {user.createdAt ? formatDate(user.createdAt) : "Not available"}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
+                </SectionCard>
 
-          {/* Change Password Section */}
-          <div
-            className="glass-hover rounded-3xl p-6 animate-slide-up"
-            style={{ animationDelay: "0.08s" }}
-          >
-            <h2 className="text-xl font-semibold text-[#F9FAFB] mb-1">Change Password</h2>
-            <p className="text-[#9CA3AF] text-sm mb-5">Update your account password</p>
-            <div className="space-y-3">
-              <input
-                type="password"
-                placeholder="Current password"
-                value={currentPw}
-                onChange={(e) => setCurrentPw(e.target.value)}
-                className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-[#F9FAFB] placeholder:text-[#6B7280] focus:outline-none focus:border-[#4ADE80]/50 transition-all duration-150 text-sm"
-              />
-              <input
-                type="password"
-                placeholder="New password (min. 8 characters)"
-                value={newPw}
-                onChange={(e) => setNewPw(e.target.value)}
-                className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-[#F9FAFB] placeholder:text-[#6B7280] focus:outline-none focus:border-[#4ADE80]/50 transition-all duration-150 text-sm"
-              />
-              <input
-                type="password"
-                placeholder="Confirm new password"
-                value={confirmPw}
-                onChange={(e) => setConfirmPw(e.target.value)}
-                className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-[#F9FAFB] placeholder:text-[#6B7280] focus:outline-none focus:border-[#4ADE80]/50 transition-all duration-150 text-sm"
-              />
-              {pwFeedback && (
-                <p className={`text-sm ${pwFeedback.ok ? "text-[#4ADE80]" : "text-[#F97373]"}`}>
-                  {pwFeedback.msg}
-                </p>
-              )}
-              <button
-                type="button"
-                disabled={changePassword.isPending}
-                onClick={async () => {
-                  setPwFeedback(null);
-                  if (!currentPw || !newPw || !confirmPw) {
-                    setPwFeedback({ ok: false, msg: "Please fill all fields" });
-                    return;
-                  }
-                  if (newPw.length < 8) {
-                    setPwFeedback({ ok: false, msg: "New password must be at least 8 characters" });
-                    return;
-                  }
-                  if (newPw !== confirmPw) {
-                    setPwFeedback({ ok: false, msg: "Passwords do not match" });
-                    return;
-                  }
-                  try {
-                    await changePassword.mutateAsync({ currentPassword: currentPw, newPassword: newPw });
-                    setPwFeedback({ ok: true, msg: "Password updated successfully" });
-                    setCurrentPw(""); setNewPw(""); setConfirmPw("");
-                  } catch (err) {
-                    setPwFeedback({ ok: false, msg: (err as Error).message });
-                  }
-                }}
-                className="px-5 py-2.5 bg-[#4ADE80] text-[#060B16] font-semibold rounded-xl hover:bg-[#4ADE80]/90 transition-all duration-150 active:scale-[0.97] disabled:opacity-50 text-sm"
-              >
-                {changePassword.isPending ? "Saving…" : "Update password"}
-              </button>
-            </div>
-          </div>
-
-          {/* Change Currency Section */}
-          <div
-            className="glass-hover rounded-3xl p-6 animate-slide-up"
-            style={{ animationDelay: "0.1s" }}
-          >
-            <h2 className="text-xl font-semibold text-[#F9FAFB] mb-1">Currency</h2>
-            <p className="text-[#9CA3AF] text-sm mb-5">Change the currency used across the app</p>
-            <div className="flex items-center gap-3">
-              <select
-                value={currencyInput}
-                onChange={(e) => setCurrencyInput(e.target.value)}
-                className="flex-1 px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-[#F9FAFB] focus:outline-none focus:border-[#4ADE80]/50 transition-all duration-150 text-sm cursor-pointer"
-              >
-                {["USD","EUR","GBP","RUB","JPY","CAD","AUD","CHF","CNY","INR"].map((c) => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
-              <button
-                type="button"
-                disabled={changeCurrency.isPending || currencyInput === currency}
-                onClick={async () => {
-                  setCurrencyFeedback(null);
-                  try {
-                    await changeCurrency.mutateAsync({ currency: currencyInput });
-                    setCurrencyFeedback("Currency updated.");
-                  } catch (err) {
-                    setCurrencyFeedback((err as Error).message);
-                  }
-                }}
-                className="px-5 py-2.5 bg-[#4ADE80] text-[#060B16] font-semibold rounded-xl hover:bg-[#4ADE80]/90 transition-all duration-150 active:scale-[0.97] disabled:opacity-50 text-sm"
-              >
-                {changeCurrency.isPending ? "Saving…" : "Save"}
-              </button>
-            </div>
-            {currencyFeedback && (
-              <p className="text-sm text-[#F9FAFB]/80 mt-2">{currencyFeedback}</p>
-            )}
-          </div>
-
-          {/* Budget Limit Section */}
-          <div
-            className="glass-hover rounded-3xl p-6 animate-slide-up"
-            style={{ animationDelay: "0.12s" }}
-          >
-            <h2 className="text-xl font-semibold text-[#F9FAFB] mb-1">Monthly Budget</h2>
-            <p className="text-[#9CA3AF] text-sm mb-5">
-              Set a monthly spending limit to track your budget
-            </p>
-
-            <div className="flex items-center gap-3">
-              <div className="flex-1 relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9CA3AF] text-sm pointer-events-none">
-                  {getCurrencySymbol(currency)}
-                </span>
-                <input
-                  type="number"
-                  placeholder="0.00"
-                  value={budgetInput}
-                  onChange={(e) => setBudgetInput(e.target.value)}
-                  className="w-full pl-8 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-[#F9FAFB] placeholder:text-[#6B7280] focus:outline-none focus:border-[#4ADE80]/50 transition-all duration-[120ms]"
-                  min="0"
-                  step="0.01"
-                />
-              </div>
-              <button
-                type="button"
-                onClick={() => handleSaveBudget()}
-                disabled={isSavingBudget}
-                className="px-5 py-2.5 bg-[#4ADE80] text-[#060B16] font-semibold rounded-xl hover:bg-[#4ADE80]/90 transition-all duration-[120ms] active:scale-[0.97] disabled:opacity-50"
-              >
-                {isSavingBudget ? "Saving..." : "Save"}
-              </button>
-              {user?.budgetLimit != null && (
-                <button
-                  type="button"
-                  onClick={() => handleSaveBudget(null)}
-                  disabled={isSavingBudget}
-                  className="px-4 py-2.5 text-[#9CA3AF] hover:text-[#F87171] transition-colors text-sm disabled:opacity-50"
+                <SectionCard
+                  title="Security"
+                  description="Keep your account private and stable with direct password management and session controls."
+                  icon={Shield}
                 >
-                  Remove
-                </button>
-              )}
-            </div>
+                  <div className="space-y-4">
+                    <div className="grid gap-3">
+                      <input
+                        type="password"
+                        placeholder="Current password"
+                        value={currentPassword}
+                        onChange={(event) => setCurrentPassword(event.target.value)}
+                        className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-[#F9FAFB] outline-none transition focus:border-[#4ADE80]/35"
+                      />
+                      <input
+                        type="password"
+                        placeholder="New password"
+                        value={newPassword}
+                        onChange={(event) => setNewPassword(event.target.value)}
+                        className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-[#F9FAFB] outline-none transition focus:border-[#4ADE80]/35"
+                      />
+                      <input
+                        type="password"
+                        placeholder="Confirm new password"
+                        value={confirmPassword}
+                        onChange={(event) => setConfirmPassword(event.target.value)}
+                        className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-[#F9FAFB] outline-none transition focus:border-[#4ADE80]/35"
+                      />
+                    </div>
 
-            {user?.budgetLimit != null && (
-              <p className="text-[#9CA3AF] text-sm mt-3">
-                Current limit:{" "}
-                <span className="text-[#4ADE80] font-medium">
-                  {formatCurrency(user.budgetLimit, currency)}/mo
-                </span>
-              </p>
-            )}
+                    {passwordFeedback ? (
+                      <StatusBanner tone={passwordFeedback.tone}>
+                        {passwordFeedback.message}
+                      </StatusBanner>
+                    ) : null}
 
-            {budgetFeedback && (
-              <p className="text-sm text-[#F9FAFB]/80 mt-3">{budgetFeedback}</p>
-            )}
-          </div>
-
-          {/* Notifications Section */}
-          <div
-            className="glass-hover rounded-3xl p-6 animate-slide-up"
-            style={{ animationDelay: "0.15s" }}
-          >
-            <h2 className="text-xl font-semibold text-[#F9FAFB] mb-1">Notifications</h2>
-            <p className="text-[#9CA3AF] text-sm mb-5">
-              Configure how you receive reminders
-            </p>
-
-            {!settings ? (
-              <EmptyState
-                icon="Bell"
-                title="Notification settings unavailable"
-                description="Refresh the page to load notification settings."
-              />
-            ) : (
-              <div className="space-y-5">
-                {/* Smart Alerts toggle */}
-                <div className="flex items-center justify-between glass-light rounded-2xl p-4">
-                  <div>
-                    <p className="text-[#F9FAFB] font-medium">Smart Alerts</p>
-                    <p className="text-[#9CA3AF] text-sm">
-                      Unused, price increase, and duplicate detection
-                    </p>
+                    <button
+                      type="button"
+                      onClick={handlePasswordSave}
+                      disabled={changePassword.isPending}
+                      className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-medium text-[#F9FAFB] transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <KeyRound className="h-4 w-4" />
+                      {changePassword.isPending ? "Updating..." : "Update password"}
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setSmartAlerts(!smartAlerts)}
-                    className={`relative w-11 h-6 rounded-full transition-all duration-[120ms] flex-shrink-0 ${
-                      smartAlerts ? "bg-[#4ADE80]" : "bg-white/10"
-                    }`}
-                    aria-label="Toggle smart alerts"
-                  >
-                    <div
-                      className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all duration-[120ms] shadow-sm ${
-                        smartAlerts ? "left-6" : "left-1"
-                      }`}
+                </SectionCard>
+              </div>
+
+              <div className="space-y-6">
+                <SectionCard
+                  title="Profile"
+                  description="Review account identity and choose the currency used across dashboard totals and analytics."
+                  icon={CreditCard}
+                >
+                  {!user ? (
+                    <EmptyState
+                      title="Account details unavailable"
+                      description="Refresh the page to load your profile."
                     />
-                  </button>
-                </div>
-
-                {/* Pre-charge reminder days */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-[#F9FAFB]/80">
-                    Pre-charge Reminder Days
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="30"
-                    value={prechargedays}
-                    onChange={(e) => {
-                      const v = parseInt(e.target.value, 10);
-                      setPrechargedays(Number.isNaN(v) ? 0 : v);
-                    }}
-                    className={`w-full rounded-2xl bg-white/5 border px-4 py-3 text-[#F9FAFB] placeholder:text-[#9CA3AF] focus:outline-none transition-all duration-[120ms] hover:bg-white/10 focus:bg-white/10 ${
-                      prechargeError
-                        ? "border-[#F87171]/50 focus:border-[#F87171]/70"
-                        : "border-white/10 focus:border-[#4ADE80]/50"
-                    }`}
-                  />
-                  {prechargeError ? (
-                    <p className="text-sm text-[#F87171]">{prechargeError}</p>
                   ) : (
-                    <p className="text-xs text-[#9CA3AF]">
-                      Number of days before a charge to send a reminder.
-                    </p>
+                    <div className="space-y-5">
+                      <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                        <p className="text-xs uppercase tracking-[0.24em] text-[#6B7280]">
+                          Email
+                        </p>
+                        <p className="mt-3 text-sm font-medium text-[#F9FAFB]">{user.email}</p>
+                      </div>
+
+                      <div className="space-y-3">
+                        <FieldLabel
+                          title="Base currency"
+                          hint="All totals, analytics summaries, and budget comparisons follow this selection."
+                        />
+                        <div className="flex flex-col gap-3 sm:flex-row">
+                          <select
+                            value={currencyInput}
+                            onChange={(event) => setCurrencyInput(event.target.value as Currency)}
+                            className="min-w-0 flex-1 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-[#F9FAFB] outline-none transition focus:border-[#4ADE80]/35"
+                          >
+                            {CURRENCIES.map((value) => (
+                              <option key={value} value={value}>
+                                {value} · {currencyNames[value]}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            onClick={handleCurrencySave}
+                            disabled={changeCurrency.isPending || currencyInput === currency}
+                            className="rounded-2xl bg-[#4ADE80] px-5 py-3 text-sm font-semibold text-[#04101A] transition hover:bg-[#74E6A1] disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {changeCurrency.isPending ? "Saving..." : "Apply"}
+                          </button>
+                        </div>
+                        {currencyFeedback ? (
+                          <StatusBanner tone={currencyFeedback.tone}>
+                            {currencyFeedback.message}
+                          </StatusBanner>
+                        ) : null}
+                      </div>
+                    </div>
                   )}
-                </div>
+                </SectionCard>
 
-                <button
-                  type="button"
-                  onClick={handleSaveNotifications}
-                  disabled={
-                    updateSettings.isPending || !hasSettingsChanged || !!prechargeError
-                  }
-                  className="w-full py-3 bg-[#4ADE80]/20 border border-[#4ADE80]/30 text-[#4ADE80] font-semibold rounded-2xl hover:bg-[#4ADE80]/30 transition-all duration-[120ms] active:scale-[0.97] disabled:opacity-40 disabled:pointer-events-none"
+                <SectionCard
+                  title="Email reminders"
+                  description="Manual trigger for charge reminder delivery and visibility into how reminder delivery behaves."
+                  icon={Mail}
                 >
-                  {updateSettings.isPending ? "Saving..." : "Save Notification Settings"}
-                </button>
+                  <div className="space-y-4">
+                    <StatusBanner tone="neutral" title="Reminder behavior">
+                      Daily reminder digests are sent to your account email when subscriptions fall
+                      inside your configured reminder window. If SMTP is not configured, reminder
+                      output may only appear in backend logs.
+                    </StatusBanner>
 
-                {notifFeedback && (
-                  <p className="text-sm text-[#F9FAFB]/80">{notifFeedback}</p>
-                )}
-              </div>
-            )}
-          </div>
+                    {reminderFeedback ? (
+                      <StatusBanner tone={reminderFeedback.tone}>
+                        {reminderFeedback.message}
+                      </StatusBanner>
+                    ) : null}
 
-          {/* Email Notifications Section */}
-          <div
-            className="glass-hover rounded-3xl p-6 animate-slide-up"
-            style={{ animationDelay: "0.2s" }}
-          >
-            <h2 className="text-xl font-semibold text-[#F9FAFB] mb-1">Email Notifications</h2>
-            <p className="text-[#9CA3AF] text-sm mb-5">
-              Daily charge reminders sent to your account email
-            </p>
+                    <button
+                      type="button"
+                      onClick={handleReminderTrigger}
+                      className="inline-flex items-center gap-2 rounded-2xl border border-[#38BDF8]/30 bg-[#38BDF8]/10 px-5 py-3 text-sm font-medium text-[#7DD3FC] transition hover:bg-[#38BDF8]/16"
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                      Send test reminder
+                    </button>
+                  </div>
+                </SectionCard>
 
-            <div className="space-y-4">
-              {/* SMTP status info */}
-              <div className="glass-light rounded-2xl p-4 space-y-2">
-                <p className="text-sm font-medium text-[#F9FAFB]">How it works</p>
-                <p className="text-xs text-[#9CA3AF] leading-relaxed">
-                  Every morning at 08:00 UTC, ControlMe checks for subscriptions charging within
-                  your reminder window and sends a digest to{" "}
-                  <span className="text-[#38BDF8]">{user?.email ?? "your email"}</span>.
-                </p>
-                <p className="text-xs text-[#6B7280] leading-relaxed">
-                  Configure SMTP via <code className="text-[#4ADE80]">SMTP_HOST</code>,{" "}
-                  <code className="text-[#4ADE80]">SMTP_USER</code>,{" "}
-                  <code className="text-[#4ADE80]">SMTP_PASS</code> env vars. Without SMTP,
-                  reminders are logged to console (dev mode).
-                </p>
-              </div>
+                <SectionCard
+                  title="Import & export"
+                  description="Move your data in and out cleanly for backups, migrations, and spreadsheet review."
+                  icon={Download}
+                >
+                  <div className="space-y-5">
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                      <p className="text-xs uppercase tracking-[0.24em] text-[#6B7280]">
+                        CSV columns
+                      </p>
+                      <p className="mt-3 font-mono text-sm text-[#D6E0E8]">
+                        name, price, billingPeriod, category, startDate
+                      </p>
+                      <p className="mt-2 text-sm text-[#94A3B8]">
+                        Use `MONTHLY` or `YEARLY` for billing period values.
+                      </p>
+                    </div>
 
-              {/* Trigger test button */}
-              <button
-                type="button"
-                onClick={async () => {
-                  try {
-                    const token = localStorage.getItem("auth_token");
-                    const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
-                    const res = await fetch(`${apiUrl}/notifications/trigger-reminders`, {
-                      method: "POST",
-                      headers: { Authorization: `Bearer ${token}` },
-                    });
-                    if (res.ok) {
-                      alert("Reminder job triggered. Check your inbox or server console.");
-                    } else {
-                      alert("Failed to trigger reminders.");
-                    }
-                  } catch {
-                    alert("Connection error. Is the backend running?");
-                  }
-                }}
-                className="flex items-center gap-2 px-4 py-2.5 bg-[#4ADE80]/10 border border-[#4ADE80]/30 text-[#4ADE80] rounded-xl hover:bg-[#4ADE80]/20 transition-all duration-[120ms] active:scale-[0.97] text-sm font-medium"
-              >
-                Send test reminder now
-              </button>
-            </div>
-          </div>
+                    {importFeedback ? (
+                      <StatusBanner
+                        tone={importFeedback.tone === "info" ? "info" : importFeedback.tone}
+                        title={importFeedback.title}
+                      >
+                        {importFeedback.message}
+                      </StatusBanner>
+                    ) : null}
 
-          {/* Import Section */}
-          <div className="glass-hover rounded-3xl p-6 animate-slide-up" style={{ animationDelay: "0.25s" }}>
-            <h2 className="text-xl font-semibold text-[#F9FAFB] mb-1">Import Data</h2>
-            <p className="text-[#9CA3AF] text-sm mb-5">
-              Upload a CSV file to bulk-add subscriptions
-            </p>
-            <div className="glass-light rounded-2xl p-4 mb-4">
-              <p className="text-xs text-[#9CA3AF] font-mono">
-                name, price, billingPeriod, category, startDate
-              </p>
-              <p className="text-xs text-[#6B7280] mt-1">
-                billingPeriod: MONTHLY or YEARLY · category: Streaming, Software, etc.
-              </p>
-            </div>
-            <label className="flex items-center gap-2 px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-[#F9FAFB] hover:bg-white/10 transition-all duration-[120ms] cursor-pointer w-fit text-sm">
-              <span>Upload CSV</span>
-              <input type="file" accept=".csv,text/csv" className="hidden" onChange={handleImportCsv} />
-            </label>
-            {importFeedback && (
-              <p className="text-sm text-[#F9FAFB]/80 mt-3">{importFeedback}</p>
-            )}
-          </div>
+                    {exportFeedback ? (
+                      <StatusBanner tone={exportFeedback.tone}>
+                        {exportFeedback.message}
+                      </StatusBanner>
+                    ) : null}
 
-          {/* Export Section */}
-          <div
-            className="glass-hover rounded-3xl p-6 animate-slide-up"
-            style={{ animationDelay: "0.3s" }}
-          >
-            <h2 className="text-xl font-semibold text-[#F9FAFB] mb-1">Export Data</h2>
-            <p className="text-[#9CA3AF] text-sm mb-5">
-              Download your subscription data for tax or budgeting purposes
-            </p>
+                    <div className="flex flex-wrap gap-3">
+                      <label className="inline-flex cursor-pointer items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-medium text-[#F9FAFB] transition hover:bg-white/10">
+                        <Upload className="h-4 w-4" />
+                        Upload CSV
+                        <input
+                          type="file"
+                          accept=".csv,text/csv"
+                          className="hidden"
+                          onChange={handleImportCsv}
+                        />
+                      </label>
 
-            <div className="flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={handleExportPDF}
-                disabled={exportPDF.isPending}
-                className="flex items-center gap-2 px-4 py-2.5 bg-[#38BDF8]/10 border border-[#38BDF8]/30 text-[#38BDF8] rounded-xl hover:bg-[#38BDF8]/20 transition-all duration-[120ms] active:scale-[0.97] disabled:opacity-50 font-medium text-sm"
-              >
-                {exportPDF.isPending ? "Exporting..." : "Export PDF Report"}
-              </button>
-              <button
-                type="button"
-                onClick={handleExportCsv}
-                className="flex items-center gap-2 px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-[#F9FAFB] hover:bg-white/10 transition-all duration-[120ms] active:scale-[0.97] text-sm"
-              >
-                Export CSV
-              </button>
-            </div>
+                      <button
+                        type="button"
+                        onClick={handleExportPdf}
+                        disabled={exportPDF.isPending}
+                        className="rounded-2xl border border-[#38BDF8]/30 bg-[#38BDF8]/10 px-5 py-3 text-sm font-medium text-[#7DD3FC] transition hover:bg-[#38BDF8]/16 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {exportPDF.isPending ? "Exporting PDF..." : "Export PDF"}
+                      </button>
 
-            {exportFeedback && (
-              <p className="text-sm text-[#F9FAFB]/80 mt-3">{exportFeedback}</p>
-            )}
+                      <button
+                        type="button"
+                        onClick={handleExportCsv}
+                        className="rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-medium text-[#F9FAFB] transition hover:bg-white/10"
+                      >
+                        Export CSV
+                      </button>
+                    </div>
+                  </div>
+                </SectionCard>
 
-            <div className="mt-4 p-4 glass-light rounded-2xl">
-              <p className="text-xs text-[#9CA3AF] leading-relaxed">
-                PDF includes subscription details, costs, and category breakdowns. CSV
-                exports all subscriptions as a spreadsheet-compatible file.
-              </p>
-            </div>
-          </div>
-
-          {/* Sign Out */}
-          <div
-            className="glass-hover rounded-3xl p-6 animate-slide-up"
-            style={{ animationDelay: "0.35s" }}
-          >
-            <h2 className="text-xl font-semibold text-[#F9FAFB] mb-1">Session</h2>
-            <p className="text-[#9CA3AF] text-sm mb-5">Manage your active session</p>
-            <button
-              type="button"
-              onClick={() => logout.mutate()}
-              disabled={logout.isPending}
-              className="w-full py-3 bg-white/5 border border-white/10 text-[#F9FAFB] font-semibold rounded-2xl hover:bg-white/10 transition-all duration-[120ms] active:scale-[0.97] disabled:opacity-50"
-            >
-              {logout.isPending ? "Signing out..." : "Sign Out"}
-            </button>
-          </div>
-
-          {/* Danger Zone */}
-          <div
-            className="rounded-3xl p-6 border border-[#F87171]/30 animate-slide-up"
-            style={{
-              background: "rgba(248, 113, 113, 0.04)",
-              animationDelay: "0.4s",
-            }}
-          >
-            <h2 className="text-xl font-semibold text-[#F87171] mb-1">Danger Zone</h2>
-            <p className="text-[#9CA3AF] text-sm mb-5">Irreversible actions. Be careful.</p>
-
-            <div className="flex items-center justify-between glass-light rounded-2xl p-4">
-              <div>
-                <p className="text-[#F9FAFB] font-medium">Delete Account</p>
-                <p className="text-[#9CA3AF] text-sm">
-                  Permanently delete your account and all data
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowDeleteConfirm(true)}
-                className="px-4 py-2 bg-[#F87171]/10 border border-[#F87171]/30 text-[#F87171] rounded-xl hover:bg-[#F87171]/20 transition-all duration-[120ms] active:scale-[0.97] font-medium text-sm"
-              >
-                Delete Account
-              </button>
-            </div>
-
-            {showDeleteConfirm && (
-              <div className="mt-4 glass-light rounded-2xl p-4 border border-[#F87171]/30">
-                <p className="text-[#F9FAFB] font-medium mb-1">Are you absolutely sure?</p>
-                <p className="text-[#9CA3AF] text-sm mb-4">
-                  This will permanently delete your account and all subscriptions. This cannot
-                  be undone.
-                </p>
-                <div className="flex gap-3">
+                <SectionCard
+                  title="Session"
+                  description="End the current session cleanly on this device."
+                  icon={LogOut}
+                >
                   <button
                     type="button"
-                    onClick={handleDeleteAccount}
-                    disabled={isDeletingAccount}
-                    className="px-4 py-2 bg-[#F87171] text-white rounded-xl hover:bg-[#F87171]/90 transition-all duration-[120ms] font-medium text-sm disabled:opacity-50"
+                    onClick={() => logout.mutate()}
+                    disabled={logout.isPending}
+                    className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-medium text-[#F9FAFB] transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {isDeletingAccount ? "Deleting..." : "Yes, delete everything"}
+                    <LogOut className="h-4 w-4" />
+                    {logout.isPending ? "Signing out..." : "Sign out"}
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowDeleteConfirm(false)}
-                    className="px-4 py-2 bg-white/5 border border-white/10 text-[#9CA3AF] rounded-xl hover:text-[#F9FAFB] transition-all duration-[120ms] text-sm"
-                  >
-                    Cancel
-                  </button>
-                </div>
+                </SectionCard>
+
+                <SectionCard
+                  title="Danger zone"
+                  description="Irreversible actions stay separated here so there is no accidental overlap with day-to-day settings."
+                  icon={Trash2}
+                  tone="danger"
+                >
+                  <div className="space-y-4">
+                    <StatusBanner tone="error" title="Permanent deletion">
+                      Deleting your account removes access, subscriptions, reminders, and stored
+                      profile data.
+                    </StatusBanner>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowDeleteConfirm((value) => !value)}
+                      className="rounded-2xl border border-[#F87171]/30 bg-[#F87171]/10 px-5 py-3 text-sm font-medium text-[#FCA5A5] transition hover:bg-[#F87171]/16"
+                    >
+                      {showDeleteConfirm ? "Hide confirmation" : "Delete account"}
+                    </button>
+
+                    {showDeleteConfirm ? (
+                      <div className="rounded-2xl border border-[#F87171]/25 bg-black/20 p-4">
+                        <p className="text-sm font-medium text-[#FDE2E2]">
+                          This action cannot be undone.
+                        </p>
+                        <p className="mt-2 text-sm leading-relaxed text-[#D8B4B4]">
+                          If you continue, ControlMe will remove your account and associated data.
+                        </p>
+                        <div className="mt-4 flex flex-wrap gap-3">
+                          <button
+                            type="button"
+                            onClick={handleDeleteAccount}
+                            disabled={deleteAccount.isPending}
+                            className="rounded-2xl bg-[#F87171] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#FB8B8B] disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {deleteAccount.isPending ? "Deleting..." : "Yes, delete everything"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setShowDeleteConfirm(false)}
+                            className="rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-medium text-[#D3DBE4] transition hover:bg-white/10"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                </SectionCard>
               </div>
-            )}
-          </div>
+            </div>
           </div>
         </div>
       </AppShell>

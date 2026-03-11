@@ -1,7 +1,11 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { CreateSubscriptionDto } from './dto/create-subscription.dto';
-import { UpdateSubscriptionDto } from './dto/update-subscription.dto';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+} from "@nestjs/common";
+import { PrismaService } from "../prisma/prisma.service";
+import { CreateSubscriptionDto } from "./dto/create-subscription.dto";
+import { UpdateSubscriptionDto } from "./dto/update-subscription.dto";
 
 @Injectable()
 export class SubscriptionsService {
@@ -13,6 +17,7 @@ export class SubscriptionsService {
         ...dto,
         userId,
         price: dto.price,
+        websiteUrl: dto.websiteUrl || null,
         nextChargeDate: new Date(dto.nextChargeDate),
       },
       include: {
@@ -33,11 +38,11 @@ export class SubscriptionsService {
         usage: true,
       },
       orderBy: {
-        nextChargeDate: 'asc',
+        nextChargeDate: "asc",
       },
     });
 
-    return subscriptions.map(sub => ({
+    return subscriptions.map((sub) => ({
       ...sub,
       price: Number(sub.price),
     }));
@@ -52,11 +57,11 @@ export class SubscriptionsService {
     });
 
     if (!subscription) {
-      throw new NotFoundException('Subscription not found');
+      throw new NotFoundException("Subscription not found");
     }
 
     if (subscription.userId !== userId) {
-      throw new ForbiddenException('Access denied');
+      throw new ForbiddenException("Access denied");
     }
 
     return {
@@ -71,6 +76,9 @@ export class SubscriptionsService {
     const updateData: any = { ...dto };
     if (dto.nextChargeDate) {
       updateData.nextChargeDate = new Date(dto.nextChargeDate);
+    }
+    if (dto.websiteUrl !== undefined) {
+      updateData.websiteUrl = dto.websiteUrl || null;
     }
 
     const subscription = await this.prisma.subscription.update({
@@ -96,26 +104,31 @@ export class SubscriptionsService {
   }
 
   async importFromCsv(userId: string, csvContent: string) {
-    const lines = csvContent.trim().split('\n');
-    if (lines.length < 2) return { imported: 0, errors: ['Empty CSV'] };
+    const lines = csvContent.trim().split("\n");
+    if (lines.length < 2) return { imported: 0, errors: ["Empty CSV"] };
 
-    const headers = lines[0].toLowerCase().split(',').map(h => h.trim());
-    const nameIdx = headers.indexOf('name');
-    const priceIdx = headers.indexOf('price');
-    const periodIdx = headers.indexOf('billingperiod');
-    const categoryIdx = headers.indexOf('category');
-    const dateIdx = headers.indexOf('startdate');
+    const headers = lines[0]
+      .toLowerCase()
+      .split(",")
+      .map((h) => h.trim());
+    const nameIdx = headers.indexOf("name");
+    const priceIdx = headers.indexOf("price");
+    const periodIdx = headers.indexOf("billingperiod");
+    const categoryIdx = headers.indexOf("category");
+    const dateIdx = headers.indexOf("startdate");
 
     if (nameIdx === -1 || priceIdx === -1) {
-      return { imported: 0, errors: ['CSV must have name and price columns'] };
+      return { imported: 0, errors: ["CSV must have name and price columns"] };
     }
 
     let imported = 0;
     const errors: string[] = [];
 
     for (let i = 1; i < lines.length; i++) {
-      const cols = lines[i].split(',').map(c => c.trim().replace(/^"|"$/g, ''));
-      if (cols.every(c => !c)) continue;
+      const cols = lines[i]
+        .split(",")
+        .map((c) => c.trim().replace(/^"|"$/g, ""));
+      if (cols.every((c) => !c)) continue;
 
       try {
         const name = cols[nameIdx];
@@ -125,10 +138,19 @@ export class SubscriptionsService {
           continue;
         }
 
-        const billingPeriod = periodIdx !== -1 && cols[periodIdx]?.toUpperCase() === 'YEARLY' ? 'YEARLY' : 'MONTHLY';
-        const category = categoryIdx !== -1 && cols[categoryIdx] ? cols[categoryIdx] : 'Other';
-        const parsedDate = dateIdx !== -1 && cols[dateIdx] ? new Date(cols[dateIdx]) : new Date();
-        const nextChargeDate = isNaN(parsedDate.getTime()) ? new Date() : parsedDate;
+        const billingPeriod =
+          periodIdx !== -1 && cols[periodIdx]?.toUpperCase() === "YEARLY"
+            ? "YEARLY"
+            : "MONTHLY";
+        const category =
+          categoryIdx !== -1 && cols[categoryIdx] ? cols[categoryIdx] : "Other";
+        const parsedDate =
+          dateIdx !== -1 && cols[dateIdx]
+            ? new Date(cols[dateIdx])
+            : new Date();
+        const nextChargeDate = isNaN(parsedDate.getTime())
+          ? new Date()
+          : parsedDate;
 
         await this.prisma.subscription.create({
           data: {
@@ -143,7 +165,9 @@ export class SubscriptionsService {
         });
         imported++;
       } catch (e) {
-        errors.push(`Row ${i}: ${e instanceof Error ? e.message : 'unknown error'}`);
+        errors.push(
+          `Row ${i}: ${e instanceof Error ? e.message : "unknown error"}`,
+        );
       }
     }
 
@@ -167,4 +191,3 @@ export class SubscriptionsService {
     return usage;
   }
 }
-

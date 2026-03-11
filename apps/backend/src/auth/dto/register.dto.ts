@@ -1,5 +1,11 @@
-import { IsEmail, IsString, MinLength, IsOptional, IsEnum } from 'class-validator';
-import { Currency } from '@/shared/types';
+import {
+  IsEmail,
+  IsString,
+  MinLength,
+  IsOptional,
+  IsEnum,
+} from "class-validator";
+import { Currency } from "@/shared/types";
 
 export class RegisterDto {
   @IsEmail()
@@ -10,7 +16,6 @@ export class RegisterDto {
   password: string;
 
   @IsOptional()
-  @IsEnum(['USD', 'EUR', 'GBP', 'RUB', 'JPY'])
+  @IsEnum(["USD", "EUR", "GBP", "RUB", "JPY"])
   currency?: Currency;
 }
-

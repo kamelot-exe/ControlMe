@@ -1,17 +1,18 @@
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
+import { ArrowUpRight, ChartNoAxesCombined, CircleDollarSign, PiggyBank } from "lucide-react";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { AppShell } from "@/components/layout/AppShell";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Chart } from "@/components/ui/Chart";
 import { DonutChart } from "@/components/ui/DonutChart";
+import { EmptyState, StatusBanner, Tag } from "@/components/ui";
 import { SkeletonCard } from "@/components/ui/Skeleton";
-import { EmptyState } from "@/components/ui/EmptyState";
 import {
   useMonthlyAnalytics,
-  useSpendingHistory,
   useSavingsSummary,
+  useSpendingHistory,
 } from "@/hooks/use-analytics";
 import { useMe } from "@/hooks/use-auth";
 import { formatCurrency } from "@/lib/utils/format";
@@ -30,59 +31,75 @@ const COLORS = [
 
 function StatCardSkeleton() {
   return (
-    <div className="glass rounded-3xl p-6 animate-pulse">
-      <div className="h-3 w-24 bg-white/10 rounded-full mb-4" />
-      <div className="h-9 w-32 bg-white/10 rounded-full mb-3" />
-      <div className="h-3 w-16 bg-white/10 rounded-full" />
+    <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.88),rgba(6,11,22,0.94))] p-6 animate-pulse">
+      <div className="mb-4 h-3 w-24 rounded-full bg-white/10" />
+      <div className="mb-3 h-9 w-32 rounded-full bg-white/10" />
+      <div className="h-3 w-16 rounded-full bg-white/10" />
     </div>
   );
 }
 
 export default function AnalyticsPage() {
-  const { data: monthlyData, isLoading: monthlyLoading } = useMonthlyAnalytics();
-  const { data: historyData, isLoading: historyLoading } = useSpendingHistory();
-  const { data: savingsData, isLoading: savingsLoading } = useSavingsSummary();
-  const { data: meData } = useMe();
+  const monthlyQuery = useMonthlyAnalytics();
+  const historyQuery = useSpendingHistory();
+  const savingsQuery = useSavingsSummary();
+  const meQuery = useMe();
 
-  const analytics = monthlyData?.data;
-  const spendingHistory = historyData?.data ?? [];
-  const savingsSummary = savingsData?.data;
-  const currency = (meData?.data?.currency ?? "USD") as Currency;
+  const analytics = monthlyQuery.data?.data;
+  const savings = savingsQuery.data?.data;
+  const spendingHistory = useMemo(() => historyQuery.data?.data ?? [], [historyQuery.data]);
+  const currency = (meQuery.data?.data?.currency ?? "USD") as Currency;
+  const categoryBreakdown = useMemo(() => analytics?.categoryBreakdown ?? [], [analytics]);
 
-  const categoryChartData =
-    analytics?.categoryBreakdown.map((item, index) => ({
-      name: item.category,
-      value: item.total,
-      color: COLORS[index % COLORS.length],
-    })) ?? [];
+  const categoryChartData = useMemo(
+    () =>
+      categoryBreakdown.map((item, index) => ({
+        name: item.category,
+        value: item.total,
+        color: COLORS[index % COLORS.length],
+      })),
+    [categoryBreakdown]
+  );
 
-  const spendingChartData = spendingHistory.map((item) => ({
-    name: item.month,
-    value: item.total,
-  }));
+  const historyChartData = useMemo(
+    () =>
+      spendingHistory.map((item) => ({
+        name: item.month,
+        value: item.total,
+      })),
+    [spendingHistory]
+  );
 
-  const isLoading = monthlyLoading || historyLoading || savingsLoading;
+  const largestCategory = categoryBreakdown[0];
+  const savingsRatio =
+    analytics && savings && analytics.totalMonthlyCost > 0
+      ? (savings.monthlySavings / analytics.totalMonthlyCost) * 100
+      : 0;
+
+  const averagePerActive =
+    analytics && analytics.activeSubscriptions > 0
+      ? analytics.totalMonthlyCost / analytics.activeSubscriptions
+      : 0;
+
+  const isLoading =
+    monthlyQuery.isLoading || historyQuery.isLoading || savingsQuery.isLoading;
 
   if (isLoading) {
     return (
       <ProtectedRoute>
         <AppShell>
           <div className="p-8 md:p-10 lg:p-12">
-            <div className="max-w-7xl space-y-8 animate-fade-in">
-            <div className="space-y-3">
-              <div className="h-12 w-48 bg-white/10 rounded-2xl animate-pulse" />
-              <div className="h-5 w-72 bg-white/5 rounded-xl animate-pulse" />
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <StatCardSkeleton />
-              <StatCardSkeleton />
-              <StatCardSkeleton />
-            </div>
-            <div className="grid gap-8 lg:grid-cols-2">
+            <div className="max-w-7xl space-y-8">
               <SkeletonCard />
-              <SkeletonCard />
-            </div>
-            <SkeletonCard />
+              <div className="grid gap-4 md:grid-cols-3">
+                <StatCardSkeleton />
+                <StatCardSkeleton />
+                <StatCardSkeleton />
+              </div>
+              <div className="grid gap-8 lg:grid-cols-2">
+                <SkeletonCard />
+                <SkeletonCard />
+              </div>
             </div>
           </div>
         </AppShell>
@@ -94,161 +111,213 @@ export default function AnalyticsPage() {
     <ProtectedRoute>
       <AppShell>
         <div className="p-8 md:p-10 lg:p-12">
-          <div className="max-w-7xl space-y-8 animate-fade-in">
+          <div className="mx-auto max-w-7xl space-y-8 animate-fade-in">
+            <section className="rounded-[32px] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(74,222,128,0.16),transparent_28%),linear-gradient(135deg,rgba(10,17,32,0.98),rgba(5,8,22,0.95))] p-7 md:p-8">
+              <div className="grid gap-8 lg:grid-cols-[1.35fr_0.95fr]">
+                <div className="space-y-4">
+                  <Tag variant="success" size="md">
+                    Spending intelligence
+                  </Tag>
+                  <div className="space-y-3">
+                    <h1 className="text-4xl font-semibold tracking-tight text-[#F9FAFB] md:text-5xl">
+                      Understand what is driving your recurring spend.
+                    </h1>
+                    <p className="max-w-2xl text-base leading-relaxed text-[#A5B4C3] md:text-lg">
+                      Analytics should help you decide what to keep, what to downgrade, and what
+                      no longer deserves space in your monthly budget.
+                    </p>
+                  </div>
+                </div>
 
-          {/* Page Title */}
-          <div className="space-y-3 animate-slide-up">
-            <h1 className="text-5xl font-bold text-[#F9FAFB] tracking-tight">Analytics</h1>
-            <p className="text-lg text-[#9CA3AF]">
-              Detailed insights into your subscription spending
-            </p>
-          </div>
+                <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-2">
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <p className="text-xs uppercase tracking-[0.24em] text-[#6B7280]">Monthly spend</p>
+                    <p className="mt-3 text-2xl font-semibold text-[#4ADE80]">
+                      {formatCurrency(analytics?.totalMonthlyCost ?? 0, currency)}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <p className="text-xs uppercase tracking-[0.24em] text-[#6B7280]">Yearly spend</p>
+                    <p className="mt-3 text-2xl font-semibold text-[#F9FAFB]">
+                      {formatCurrency(analytics?.totalYearlyCost ?? 0, currency)}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <p className="text-xs uppercase tracking-[0.24em] text-[#6B7280]">Active subscriptions</p>
+                    <p className="mt-3 text-2xl font-semibold text-[#7DD3FC]">
+                      {analytics?.activeSubscriptions ?? 0}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <p className="text-xs uppercase tracking-[0.24em] text-[#6B7280]">Avg per active</p>
+                    <p className="mt-3 text-2xl font-semibold text-[#F9FAFB]">
+                      {formatCurrency(averagePerActive, currency)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </section>
 
-          {/* Summary Row */}
-          <div
-            className="grid grid-cols-1 md:grid-cols-3 gap-4 animate-slide-up"
-            style={{ animationDelay: "0.05s" }}
-          >
-            {/* Monthly Total */}
-            <div className="glass rounded-3xl p-6">
-              <p className="text-xs text-[#9CA3AF] uppercase tracking-wider mb-2">Monthly Total</p>
-              <p className="text-3xl font-bold text-[#4ADE80] tracking-tight">
-                {formatCurrency(analytics?.totalMonthlyCost ?? 0, currency)}
-              </p>
-              <p className="text-sm text-[#9CA3AF] mt-1">Per month</p>
-            </div>
+            {analytics?.activeSubscriptions ? (
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.88),rgba(6,11,22,0.94))] p-6">
+                  <div className="mb-4 flex items-center gap-3">
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-2.5 text-[#4ADE80]">
+                      <CircleDollarSign className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-[#F9FAFB]">Largest category</p>
+                      <p className="text-sm text-[#94A3B8]">The biggest share of monthly spend.</p>
+                    </div>
+                  </div>
+                  <p className="text-2xl font-semibold text-[#F9FAFB]">
+                    {largestCategory?.category ?? "No category data"}
+                  </p>
+                  <p className="mt-2 text-sm text-[#94A3B8]">
+                    {largestCategory
+                      ? `${formatCurrency(largestCategory.total, currency)} across ${largestCategory.count} subscriptions`
+                      : "Add subscriptions to see category concentration."}
+                  </p>
+                </div>
 
-            {/* Yearly Total */}
-            <div className="glass rounded-3xl p-6">
-              <p className="text-xs text-[#9CA3AF] uppercase tracking-wider mb-2">Yearly Total</p>
-              <p className="text-3xl font-bold text-[#F9FAFB] tracking-tight">
-                {formatCurrency(analytics?.totalYearlyCost ?? 0, currency)}
-              </p>
-              <p className="text-sm text-[#9CA3AF] mt-1">Per year</p>
-            </div>
+                <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.88),rgba(6,11,22,0.94))] p-6">
+                  <div className="mb-4 flex items-center gap-3">
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-2.5 text-[#7DD3FC]">
+                      <ChartNoAxesCombined className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-[#F9FAFB]">Trend read</p>
+                      <p className="text-sm text-[#94A3B8]">How spending behaves over time.</p>
+                    </div>
+                  </div>
+                  <p className="text-2xl font-semibold text-[#F9FAFB]">
+                    {historyChartData.length > 1 ? "Trend available" : "Early data"}
+                  </p>
+                  <p className="mt-2 text-sm text-[#94A3B8]">
+                    {historyChartData.length > 1
+                      ? "Use the history chart below to judge whether recurring costs are creeping upward."
+                      : "More monthly history is needed before trends become meaningful."}
+                  </p>
+                </div>
 
-            {/* Active Subscriptions */}
-            <div className="glass rounded-3xl p-6">
-              <p className="text-xs text-[#9CA3AF] uppercase tracking-wider mb-2">Active Subs</p>
-              <p className="text-3xl font-bold text-[#38BDF8] tracking-tight">
-                {analytics?.activeSubscriptions ?? 0}
-              </p>
-              <p className="text-sm text-[#9CA3AF] mt-1">Subscriptions</p>
-            </div>
-          </div>
+                <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.88),rgba(6,11,22,0.94))] p-6">
+                  <div className="mb-4 flex items-center gap-3">
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-2.5 text-[#F59E0B]">
+                      <PiggyBank className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-[#F9FAFB]">Savings potential</p>
+                      <p className="text-sm text-[#94A3B8]">Unused services worth revisiting.</p>
+                    </div>
+                  </div>
+                  <p className="text-2xl font-semibold text-[#F9FAFB]">
+                    {formatCurrency(savings?.monthlySavings ?? 0, currency)}
+                  </p>
+                  <p className="mt-2 text-sm text-[#94A3B8]">
+                    {savings?.unusedCount
+                      ? `${savings.unusedCount} subscriptions currently look unused.`
+                      : "No unused subscriptions detected right now."}
+                  </p>
+                </div>
+              </div>
+            ) : null}
 
-          {/* Charts Grid */}
-          <div
-            className="grid gap-8 lg:grid-cols-2 animate-slide-up"
-            style={{ animationDelay: "0.1s" }}
-          >
-            {/* Spending History */}
-            <Card className="glass-hover">
-              <CardHeader>
-                <CardTitle>Spending History</CardTitle>
-                <CardDescription>Last 6 months</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {spendingChartData.length === 0 ? (
-                  <EmptyState
-                    icon="📊"
-                    title="Not enough data yet"
-                    description="Add subscriptions to see spending history"
-                  />
-                ) : (
-                  <div className="animate-fade-in">
+            {savings && savings.unusedCount > 0 ? (
+              <StatusBanner tone="error" title="Potential savings">
+                Unused subscriptions account for {formatCurrency(savings.monthlySavings, currency)} per
+                month, roughly {savingsRatio.toFixed(0)}% of total recurring spend.
+              </StatusBanner>
+            ) : null}
+
+            <div className="grid gap-8 lg:grid-cols-2">
+              <Card className="glass-hover">
+                <CardHeader>
+                  <CardTitle>Spending history</CardTitle>
+                  <CardDescription>Monthly trend across the last recorded periods.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {historyChartData.length === 0 ? (
+                    <EmptyState
+                      title="Not enough history yet"
+                      description="As you keep subscriptions active over time, ControlMe will show whether recurring spend is drifting upward or staying stable."
+                    />
+                  ) : (
                     <Chart
-                      data={spendingChartData}
+                      data={historyChartData}
                       dataKey="value"
                       type="area"
                       color="#4ADE80"
                     />
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                  )}
+                </CardContent>
+              </Card>
 
-            {/* Category Donut */}
-            <Card className="glass-hover">
-              <CardHeader>
-                <CardTitle>Category Breakdown</CardTitle>
-                <CardDescription>Distribution by category</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {categoryChartData.length === 0 ? (
-                  <EmptyState
-                    icon="📈"
-                    title="No data"
-                    description="Add subscriptions to see category breakdown"
-                  />
-                ) : (
-                  <div className="animate-fade-in">
+              <Card className="glass-hover">
+                <CardHeader>
+                  <CardTitle>Category mix</CardTitle>
+                  <CardDescription>How your monthly spend is distributed by category.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {categoryChartData.length === 0 ? (
+                    <EmptyState
+                      title="No category data yet"
+                      description="Add subscriptions first to see which groups dominate your recurring costs."
+                    />
+                  ) : (
                     <DonutChart data={categoryChartData} />
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Unused Cost Block */}
-          {savingsSummary && savingsSummary.unusedCount > 0 && (
-            <div
-              className="rounded-3xl p-6 border border-[#F87171]/20 animate-slide-up"
-              style={{
-                background: "rgba(248, 113, 113, 0.05)",
-                animationDelay: "0.15s",
-              }}
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-[#F87171] font-semibold text-lg">Potential Savings</p>
-                  <p className="text-[#9CA3AF] text-sm mt-1">
-                    You have {savingsSummary.unusedCount} unused subscription
-                    {savingsSummary.unusedCount !== 1 ? "s" : ""}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="text-3xl font-bold text-[#F87171]">
-                    {formatCurrency(savingsSummary.monthlySavings, currency)}
-                  </p>
-                  <p className="text-[#9CA3AF] text-sm">/month wasted</p>
-                </div>
-              </div>
+                  )}
+                </CardContent>
+              </Card>
             </div>
-          )}
 
-          {/* Category Breakdown List */}
-          {(analytics?.categoryBreakdown?.length ?? 0) > 0 && (
-            <div
-              className="glass-hover rounded-3xl p-6 animate-slide-up"
-              style={{ animationDelay: "0.2s" }}
-            >
-              <h3 className="text-lg font-semibold text-[#F9FAFB] mb-4">Category Details</h3>
-              <div className="space-y-3">
-                {analytics!.categoryBreakdown.map((item, i) => (
-                  <div
-                    key={item.category}
-                    className="flex items-center justify-between glass-light rounded-2xl p-3 animate-fade-in"
-                    style={{ animationDelay: `${i * 0.04}s` }}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div
-                        className="w-2 h-2 rounded-full flex-shrink-0"
-                        style={{ background: COLORS[i % COLORS.length] }}
-                      />
-                      <span className="text-[#F9FAFB] font-medium">{item.category}</span>
-                      <span className="text-[#9CA3AF] text-sm">
-                        {item.count} sub{item.count !== 1 ? "s" : ""}
-                      </span>
+            {categoryBreakdown.length > 0 ? (
+              <section className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.88),rgba(6,11,22,0.94))] p-6">
+                <div className="mb-5 flex items-center justify-between gap-4">
+                  <div>
+                    <h2 className="text-xl font-semibold text-[#F9FAFB]">Category details</h2>
+                    <p className="mt-1 text-sm text-[#94A3B8]">
+                      The categories below are ordered by their monthly financial weight.
+                    </p>
+                  </div>
+                  <Tag variant="info" size="md">
+                    {categoryBreakdown.length} categories
+                  </Tag>
+                </div>
+
+                <div className="space-y-3">
+                  {categoryBreakdown.map((item, index) => (
+                    <div
+                      key={item.category}
+                      className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 md:flex-row md:items-center md:justify-between"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="h-2.5 w-2.5 rounded-full"
+                          style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                        />
+                        <div>
+                          <p className="font-medium text-[#F9FAFB]">{item.category}</p>
+                          <p className="text-sm text-[#94A3B8]">
+                            {item.count} subscription{item.count === 1 ? "" : "s"}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm text-[#94A3B8]">
+                          {(analytics?.totalMonthlyCost ?? 0) > 0
+                            ? `${((item.total / (analytics?.totalMonthlyCost ?? 1)) * 100).toFixed(0)}% of monthly spend`
+                            : "0% of monthly spend"}
+                        </span>
+                        <span className="inline-flex items-center gap-1 text-sm font-semibold text-[#4ADE80]">
+                          {formatCurrency(item.total, currency)}
+                          <ArrowUpRight className="h-4 w-4" />
+                        </span>
+                      </div>
                     </div>
-                    <span className="text-[#4ADE80] font-semibold">
-                      {formatCurrency(item.total, currency)}/mo
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+                  ))}
+                </div>
+              </section>
+            ) : null}
           </div>
         </div>
       </AppShell>

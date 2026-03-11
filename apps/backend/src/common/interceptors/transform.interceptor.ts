@@ -3,14 +3,14 @@ import {
   NestInterceptor,
   ExecutionContext,
   CallHandler,
-} from '@nestjs/common';
-import { Prisma } from '@prisma/client';
-import { Observable } from 'rxjs';
-import { map } from 'rxjs/operators';
-import type { ApiResponse } from '@/shared/types';
+} from "@nestjs/common";
+import { Prisma } from "@prisma/client";
+import { Observable } from "rxjs";
+import { map } from "rxjs/operators";
+import type { ApiResponse } from "@/shared/types";
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
-  Object.prototype.toString.call(value) === '[object Object]';
+  Object.prototype.toString.call(value) === "[object Object]";
 
 const normalizeDecimals = (value: unknown): unknown => {
   if (Prisma.Decimal.isDecimal(value)) {
@@ -37,9 +37,10 @@ const normalizeDecimals = (value: unknown): unknown => {
 };
 
 @Injectable()
-export class TransformInterceptor<T>
-  implements NestInterceptor<T, ApiResponse<T>>
-{
+export class TransformInterceptor<T> implements NestInterceptor<
+  T,
+  ApiResponse<T>
+> {
   intercept(
     context: ExecutionContext,
     next: CallHandler,
@@ -51,4 +52,3 @@ export class TransformInterceptor<T>
     );
   }
 }
-

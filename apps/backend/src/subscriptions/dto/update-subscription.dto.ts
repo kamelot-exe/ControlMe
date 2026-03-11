@@ -1,5 +1,16 @@
-import { IsString, IsNumber, IsEnum, IsDateString, IsOptional, IsBoolean, Min, MinLength, MaxLength } from 'class-validator';
-import { BillingPeriod } from '@/shared/types';
+import {
+  IsString,
+  IsNumber,
+  IsDateString,
+  IsOptional,
+  IsBoolean,
+  Min,
+  MinLength,
+  MaxLength,
+  IsIn,
+  IsUrl,
+} from "class-validator";
+import { BillingPeriod } from "@/shared/types";
 
 export class UpdateSubscriptionDto {
   @IsOptional()
@@ -10,11 +21,11 @@ export class UpdateSubscriptionDto {
 
   @IsOptional()
   @IsNumber()
-  @Min(0.01, { message: 'Price must be greater than 0' })
+  @Min(0.01, { message: "Price must be greater than 0" })
   price?: number;
 
   @IsOptional()
-  @IsEnum(['MONTHLY', 'YEARLY'])
+  @IsIn(["MONTHLY", "YEARLY"])
   billingPeriod?: BillingPeriod;
 
   @IsOptional()
@@ -28,6 +39,11 @@ export class UpdateSubscriptionDto {
   category?: string;
 
   @IsOptional()
+  @IsUrl({}, { message: "Website URL must be a valid URL" })
+  @MaxLength(300)
+  websiteUrl?: string;
+
+  @IsOptional()
   @IsString()
   @MaxLength(500)
   notes?: string;
@@ -36,4 +52,3 @@ export class UpdateSubscriptionDto {
   @IsBoolean()
   isActive?: boolean;
 }
-

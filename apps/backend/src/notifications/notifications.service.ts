@@ -1,8 +1,12 @@
-import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { UpdateNotificationSettingsDto } from './dto/update-notification-settings.dto';
+import { Injectable } from "@nestjs/common";
+import { PrismaService } from "../prisma/prisma.service";
+import { UpdateNotificationSettingsDto } from "./dto/update-notification-settings.dto";
 
-type NotificationAlertType = 'PRECHARGE' | 'UNUSED' | 'SPENDING_INCREASE' | 'DUPLICATE';
+type NotificationAlertType =
+  | "PRECHARGE"
+  | "UNUSED"
+  | "SPENDING_INCREASE"
+  | "DUPLICATE";
 
 export interface NotificationAlert {
   type: NotificationAlertType;
@@ -55,14 +59,18 @@ export class NotificationsService {
 
     const prechargeDays = settings?.prechargeReminderDays ?? 1;
     const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfToday = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+    );
     const unusedCutoff = new Date(startOfToday);
     unusedCutoff.setDate(unusedCutoff.getDate() - 30);
 
     const subscriptions = await this.prisma.subscription.findMany({
       where: { userId, isActive: true },
       include: { usage: true },
-      orderBy: { nextChargeDate: 'asc' },
+      orderBy: { nextChargeDate: "asc" },
     });
 
     const alerts: NotificationAlert[] = [];
@@ -74,7 +82,7 @@ export class NotificationsService {
 
     for (const sub of subscriptions) {
       const monthlyPrice =
-        sub.billingPeriod === 'MONTHLY'
+        sub.billingPeriod === "MONTHLY"
           ? Number(sub.price)
           : Number(sub.price) / 12;
 
@@ -94,7 +102,7 @@ export class NotificationsService {
 
       if (daysUntil >= 0 && daysUntil <= prechargeDays) {
         alerts.push({
-          type: 'PRECHARGE',
+          type: "PRECHARGE",
           message:
             daysUntil === 0
               ? `Charge today: ${sub.name}`
@@ -109,7 +117,7 @@ export class NotificationsService {
       const lastUse = sub.usage?.lastConfirmedUseAt ?? sub.createdAt;
       if (lastUse && lastUse <= unusedCutoff) {
         alerts.push({
-          type: 'UNUSED',
+          type: "UNUSED",
           message: `Unused subscription for 30+ days: ${sub.name}`,
           subscriptionId: sub.id,
         });
@@ -121,7 +129,7 @@ export class NotificationsService {
       const percentIncrease = Math.round((increaseRatio - 1) * 100);
       if (percentIncrease >= 12) {
         alerts.push({
-          type: 'SPENDING_INCREASE',
+          type: "SPENDING_INCREASE",
           message: `Your monthly spending increased by ${percentIncrease}% in the last 30 days`,
           percent: percentIncrease,
         });
@@ -138,11 +146,11 @@ export class NotificationsService {
         const nameB = sub2.name.toLowerCase().trim();
 
         if (nameA.includes(nameB) || nameB.includes(nameA)) {
-          const pairKey = [sub1.id, sub2.id].sort().join(':');
+          const pairKey = [sub1.id, sub2.id].sort().join(":");
           if (!seenPairs.has(pairKey)) {
             seenPairs.add(pairKey);
             alerts.push({
-              type: 'DUPLICATE',
+              type: "DUPLICATE",
               message: `Possible duplicate: "${sub1.name}" and "${sub2.name}"`,
               subscriptionId: sub1.id,
             });

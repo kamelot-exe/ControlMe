@@ -1,12 +1,12 @@
-import { Body, Controller, Get, Patch, UseGuards } from '@nestjs/common';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
-import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
-import { NotificationsService } from './notifications.service';
-import { UpdateNotificationSettingsDto } from './dto/update-notification-settings.dto';
-import type { NotificationSettings } from '@/shared/types';
+import { Body, Controller, Get, Patch, UseGuards } from "@nestjs/common";
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { CurrentUser } from "../auth/decorators/current-user.decorator";
+import type { AuthenticatedUser } from "../auth/interfaces/authenticated-user.interface";
+import { NotificationsService } from "./notifications.service";
+import { UpdateNotificationSettingsDto } from "./dto/update-notification-settings.dto";
+import type { NotificationSettings } from "@/shared/types";
 
-@Controller('settings/notifications')
+@Controller("settings/notifications")
 @UseGuards(JwtAuthGuard)
 export class NotificationSettingsController {
   constructor(private readonly notificationsService: NotificationsService) {}
