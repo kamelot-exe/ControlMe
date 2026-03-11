@@ -16,16 +16,16 @@ export type AppLanguage = (typeof LANGUAGES)[number];
 
 const languageLabels: Record<AppLanguage, string> = {
   EN: "English",
-  FR: "Français",
-  RU: "Русский",
-  UK: "Українська",
-  GE: "Deutsch",
-  ES: "Español",
-  PT: "Português",
-  IT: "Italiano",
-  PL: "Polski",
-  TR: "Türkçe",
-  UZ: "O'zbekcha",
+  FR: "French",
+  RU: "Russian",
+  UK: "Ukrainian",
+  GE: "German",
+  ES: "Spanish",
+  PT: "Portuguese",
+  IT: "Italian",
+  PL: "Polish",
+  TR: "Turkish",
+  UZ: "Uzbek",
 };
 
 export function getLanguageLabel(language: AppLanguage) {

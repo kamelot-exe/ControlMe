@@ -8,12 +8,14 @@ import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { ConnectionError } from "@/components/errors/ConnectionError";
 import { AppShell } from "@/components/layout/AppShell";
 import { EmptyState, ErrorState, StatusBanner, Tag } from "@/components/ui";
+import { useAppUi } from "@/components/ui/AppUiProvider";
 import { SkeletonCard } from "@/components/ui/Skeleton";
 import { useChangeCurrency, useChangePassword, useDeleteAccount, useLogout, useMe, useSetBudgetLimit } from "@/hooks/use-auth";
 import { useExportPDF, useNotificationSettings, useUpdateNotificationSettings } from "@/hooks/use-settings";
 import { useApiError } from "@/hooks/use-api-error";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatDate } from "@/lib/utils/format";
+import { translate } from "@/lib/i18n";
 import type { Currency } from "@/shared/types";
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
@@ -56,6 +58,9 @@ function Section({
 }
 
 export default function SettingsPage() {
+  const { language } = useAppUi();
+  const t = (fallback: string, values?: Record<string, string>) =>
+    translate(language, (values ?? {}) as Record<typeof language, string>, fallback);
   const router = useRouter();
   const queryClient = useQueryClient();
   const userQuery = useMe();
@@ -266,33 +271,33 @@ export default function SettingsPage() {
           <div className="mx-auto max-w-6xl space-y-8 animate-fade-in">
             {hasConnectionError ? <ConnectionError onRetry={() => { userQuery.refetch(); settingsQuery.refetch(); }} /> : null}
             {(userQuery.isError || settingsQuery.isError) && !hasConnectionError ? (
-              <ErrorState title="Unable to load settings" message={userError.errorMessage ?? settingsError.errorMessage ?? "Please retry in a moment."} onRetry={() => { userQuery.refetch(); settingsQuery.refetch(); }} />
+              <ErrorState title={t("Unable to load settings", { FR: "Impossible de charger les parametres", RU: "Не удалось загрузить настройки", ES: "No se pudieron cargar los ajustes", PT: "Nao foi possivel carregar as configuracoes" })} message={userError.errorMessage ?? settingsError.errorMessage ?? t("Please retry in a moment.", { FR: "Veuillez reessayer dans un instant.", RU: "Повторите попытку через минуту.", ES: "Vuelve a intentarlo en un momento.", PT: "Tente novamente em instantes." })} onRetry={() => { userQuery.refetch(); settingsQuery.refetch(); }} />
             ) : null}
 
             <section className="rounded-[32px] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(255,115,85,0.18),transparent_30%),linear-gradient(135deg,rgba(10,17,32,0.98),rgba(5,8,22,0.96))] p-6 md:p-7 lg:p-8">
               <div className="grid gap-6 lg:grid-cols-[1.4fr_0.9fr]">
                 <div className="space-y-4">
-                  <Tag variant="success" size="md">Preferences & control</Tag>
+                  <Tag variant="success" size="md">{t("Preferences & control", { FR: "Preferences et controle", RU: "Параметры и контроль", ES: "Preferencias y control", PT: "Preferencias e controle" })}</Tag>
                   <div className="space-y-3">
-                    <h1 className="text-3xl font-semibold tracking-tight text-[#F9FAFB] md:text-4xl lg:text-5xl">Keep your workspace quiet, clear, and under control.</h1>
-                    <p className="max-w-2xl text-base leading-relaxed text-[#A5B4C3] md:text-lg">Tune reminders, budgets, exports, and security from one place.</p>
+                    <h1 className="text-3xl font-semibold tracking-tight text-[#F9FAFB] md:text-4xl lg:text-5xl">{t("Keep your workspace quiet, clear, and under control.", { FR: "Gardez votre espace clair et sous controle.", RU: "Держите рабочее пространство чистым и под контролем.", ES: "Mantén tu espacio claro y bajo control.", PT: "Mantenha seu espaco claro e sob controle." })}</h1>
+                    <p className="max-w-2xl text-base leading-relaxed text-[#A5B4C3] md:text-lg">{t("Tune reminders, budgets, exports, and security from one place.", { FR: "Gerez rappels, budget, export et securite depuis un seul endroit.", RU: "Управляйте напоминаниями, бюджетом, экспортом и безопасностью в одном месте.", ES: "Ajusta recordatorios, presupuesto, exportaciones y seguridad en un solo lugar.", PT: "Ajuste lembretes, orcamento, exportacoes e seguranca em um so lugar." })}</p>
                   </div>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
                   <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <p className="text-xs uppercase tracking-[0.24em] text-[#6B7280]">Account</p>
-                    <p className="mt-3 break-all text-sm font-medium text-[#F9FAFB]">{user?.email ?? "No email available"}</p>
+                    <p className="text-xs uppercase tracking-[0.24em] text-[#6B7280]">{t("Account", { FR: "Compte", RU: "Аккаунт", ES: "Cuenta", PT: "Conta" })}</p>
+                    <p className="mt-3 break-all text-sm font-medium text-[#F9FAFB]">{user?.email ?? t("No email available", { FR: "Aucun email", RU: "Нет email", ES: "Sin correo", PT: "Sem email" })}</p>
                   </div>
                   <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <p className="text-xs uppercase tracking-[0.24em] text-[#6B7280]">Member since</p>
-                    <p className="mt-3 text-sm font-medium text-[#F9FAFB]">{user?.createdAt ? formatDate(user.createdAt) : "Unavailable"}</p>
+                    <p className="text-xs uppercase tracking-[0.24em] text-[#6B7280]">{t("Member since", { FR: "Membre depuis", RU: "С нами с", ES: "Miembro desde", PT: "Membro desde" })}</p>
+                    <p className="mt-3 text-sm font-medium text-[#F9FAFB]">{user?.createdAt ? formatDate(user.createdAt) : t("Unavailable", { FR: "Indisponible", RU: "Недоступно", ES: "No disponible", PT: "Indisponivel" })}</p>
                   </div>
                 </div>
               </div>
             </section>
 
             <div className="space-y-6">
-              <Section title="Notifications" description="Keep reminders and notification controls in one place." icon={Bell}>
+              <Section title={t("Notifications", { FR: "Notifications", RU: "Уведомления", ES: "Notificaciones", PT: "Notificacoes" })} description={t("Keep reminders and notification controls in one place.", { FR: "Gardez rappels et controles au meme endroit.", RU: "Держите напоминания и настройки уведомлений в одном месте.", ES: "Mantén recordatorios y controles juntos.", PT: "Mantenha lembretes e controles juntos." })} icon={Bell}>
                 {!settings ? (
                   <EmptyState title="Notification settings unavailable" description="Refresh the page to load your reminder preferences." />
                 ) : (
@@ -313,10 +318,10 @@ export default function SettingsPage() {
                         <input type="number" min="0" max="30" value={prechargeDays} onChange={(event) => { const nextValue = parseInt(event.target.value, 10); setPrechargeDays(Number.isNaN(nextValue) ? 0 : nextValue); }} className={cn("w-full rounded-2xl border bg-white/5 px-4 py-3 text-[#F9FAFB] outline-none transition", prechargeError ? "border-[#F97373]/40" : "border-white/10 focus:border-[#4ADE80]/35")} />
                         {!prechargeError ? <p className="text-sm text-[#94A3B8]">Current reminder window: {prechargeDays} day{prechargeDays === 1 ? "" : "s"} before charge.</p> : null}
                       </div>
-                      <button type="button" onClick={handleReminderTrigger} className="inline-flex items-center gap-2 rounded-2xl border border-[#FF7355]/30 bg-[#FF7355]/10 px-5 py-3 text-sm font-medium text-[#FF7355] transition hover:bg-[#FF7355]/16">
-                        <RefreshCw className="h-4 w-4" />
-                        Send test reminder
-                      </button>
+                    <button type="button" onClick={handleReminderTrigger} className="inline-flex items-center gap-2 rounded-2xl border border-[#FF7355]/30 bg-[#FF7355]/10 px-5 py-3 text-sm font-medium text-[#FF7355] transition hover:bg-[#FF7355]/16">
+                      <RefreshCw className="h-4 w-4" />
+                      {t("Send test reminder", { FR: "Envoyer un test", RU: "Тестовое письмо", ES: "Enviar prueba", PT: "Enviar teste" })}
+                    </button>
                     </div>
 
                     <StatusBanner tone="neutral" title="Reminder behavior">Daily reminder digests are sent to your account email when subscriptions fall inside your configured reminder window.</StatusBanner>
@@ -331,7 +336,7 @@ export default function SettingsPage() {
                 )}
               </Section>
 
-              <Section title="Monthly budget" description="Keep budget and currency together so financial controls stay in one place." icon={Wallet}>
+              <Section title={t("Monthly budget", { FR: "Budget mensuel", RU: "Месячный бюджет", ES: "Presupuesto mensual", PT: "Orcamento mensal" })} description={t("Keep budget and currency together so financial controls stay in one place.", { FR: "Gardez budget et devise ensemble.", RU: "Храните бюджет и валюту в одном разделе.", ES: "Mantén presupuesto y moneda juntos.", PT: "Mantenha orcamento e moeda juntos." })} icon={Wallet}>
                 <div className="grid gap-6 lg:grid-cols-2">
                   <div className="space-y-4">
                     <p className="text-sm font-medium text-[#F9FAFB]">Budget target</p>
@@ -363,7 +368,7 @@ export default function SettingsPage() {
                 </div>
               </Section>
 
-              <Section title="Security" description="Password changes, imports, exports, and session controls live here." icon={Shield}>
+              <Section title={t("Security", { FR: "Securite", RU: "Безопасность", ES: "Seguridad", PT: "Seguranca" })} description={t("Password changes, imports, exports, and session controls live here.", { FR: "Mot de passe, import, export et session se gerent ici.", RU: "Пароль, импорт, экспорт и сессия находятся здесь.", ES: "Aqui gestionas contrasena, importacion, exportacion y sesion.", PT: "Senha, importacao, exportacao e sessao ficam aqui." })} icon={Shield}>
                 <div className="space-y-6">
                   <div className="grid gap-3">
                     <input type="password" placeholder="Current password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-[#F9FAFB] outline-none transition focus:border-[#4ADE80]/35" />
@@ -405,7 +410,7 @@ export default function SettingsPage() {
                 </div>
               </Section>
 
-              <Section title="Danger zone" description="Irreversible actions stay at the bottom, away from everyday controls." icon={Trash2} danger>
+              <Section title={t("Danger zone", { FR: "Zone sensible", RU: "Опасная зона", ES: "Zona de peligro", PT: "Zona de perigo" })} description={t("Irreversible actions stay at the bottom, away from everyday controls.", { FR: "Les actions irreversibles restent en bas.", RU: "Необратимые действия вынесены вниз.", ES: "Las acciones irreversibles quedan al final.", PT: "Acoes irreversiveis ficam no final." })} icon={Trash2} danger>
                 <div className="space-y-4">
                   <StatusBanner tone="error" title="Permanent deletion">Deleting your account removes access, subscriptions, reminders, and stored profile data.</StatusBanner>
                   <button type="button" onClick={() => setShowDeleteConfirm((value) => !value)} className="rounded-2xl border border-[#F87171]/30 bg-[#F87171]/10 px-5 py-3 text-sm font-medium text-[#FCA5A5] transition hover:bg-[#F87171]/16">

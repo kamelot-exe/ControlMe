@@ -12,11 +12,13 @@ import { DonutChart } from "@/components/ui/DonutChart";
 import { Chart } from "@/components/ui/Chart";
 import { StatusBanner } from "@/components/ui/StatusBanner";
 import { Tag } from "@/components/ui/Tag";
+import { useAppUi } from "@/components/ui/AppUiProvider";
 import { useSubscriptions } from "@/hooks/use-subscriptions";
 import { useMonthlyAnalytics, useSpendingHistory } from "@/hooks/use-analytics";
 import { useSmartAlerts } from "@/hooks/use-notifications";
 import { useMe } from "@/hooks/use-auth";
 import { useApiError } from "@/hooks/use-api-error";
+import { translate } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import {
   formatCurrency,
@@ -41,6 +43,10 @@ function getTrend(current?: number, previous?: number) {
 
 export default function DashboardPage() {
   const [upcomingView, setUpcomingView] = useState<"timeline" | "list">("timeline");
+  const { language } = useAppUi();
+  const t = (fallback: string, values?: Record<string, string>) =>
+    translate(language, (values ?? {}) as Record<typeof language, string>, fallback);
+
   const subscriptionsQuery = useSubscriptions();
   const analyticsQuery = useMonthlyAnalytics();
   const alertsQuery = useSmartAlerts();
@@ -76,10 +82,7 @@ export default function DashboardPage() {
   const urgentCharges = upcomingCharges.filter(
     (item) => getDaysUntil(item.nextChargeDate) <= 7,
   );
-  const upcomingTotal = upcomingCharges.reduce(
-    (sum, item) => sum + item.price,
-    0,
-  );
+  const upcomingTotal = upcomingCharges.reduce((sum, item) => sum + item.price, 0);
 
   const topCategory = analytics?.categoryBreakdown?.length
     ? [...analytics.categoryBreakdown].sort((a, b) => b.total - a.total)[0]
@@ -112,8 +115,16 @@ export default function DashboardPage() {
         <AppShell>
           <div className="p-8 md:p-10 lg:p-12">
             <div className="max-w-7xl space-y-6">
-              <SkeletonCard />
-              <div className="grid gap-4 lg:grid-cols-4">
+              <div className="grid gap-5 lg:grid-cols-3">
+                <div className="lg:col-span-2">
+                  <SkeletonCard />
+                </div>
+                <div className="space-y-4">
+                  <SkeletonCard />
+                  <SkeletonCard />
+                </div>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <SkeletonCard />
                 <SkeletonCard />
                 <SkeletonCard />
@@ -137,9 +148,30 @@ export default function DashboardPage() {
         <AppShell>
           <div className="p-8 md:p-10 lg:p-12">
             <div className="max-w-6xl space-y-6">
-              <StatusBanner tone="info" title="Start with your first recurring cost">
-                Add a few services first and the dashboard will turn into a real control center
-                for renewals, timing, and recurring spend.
+              <StatusBanner
+                tone="info"
+                title={t("Start with your first recurring cost", {
+                  FR: "Commencez par votre premier cout recurrent",
+                  RU: "Начните с первой регулярной траты",
+                  UK: "Почнiть з першої регулярної витрати",
+                  GE: "Beginnen Sie mit Ihrem ersten wiederkehrenden Betrag",
+                  ES: "Empieza con tu primer gasto recurrente",
+                  PT: "Comece com seu primeiro gasto recorrente",
+                  IT: "Inizia con il tuo primo costo ricorrente",
+                  PL: "Zacznij od pierwszego kosztu cyklicznego",
+                  TR: "Ilk duzenli odemenizle baslayin",
+                  UZ: "Birinchi muntazam tolovingizni qoshing",
+                })}
+              >
+                {t(
+                  "Add a few services first and the dashboard will turn into a real control center for renewals, timing, and recurring spend.",
+                  {
+                    FR: "Ajoutez quelques services et le tableau de bord deviendra un vrai centre de controle des renouvellements et depenses recurrentes.",
+                    RU: "Добавьте несколько сервисов, и дашборд станет полноценным центром контроля продлений и регулярных расходов.",
+                    ES: "Agrega algunos servicios y el panel se convertira en un centro de control de renovaciones y gastos recurrentes.",
+                    PT: "Adicione alguns servicos e o painel se tornara um centro de controle de renovacoes e gastos recorrentes.",
+                  },
+                )}
               </StatusBanner>
               <OnboardingEmpty />
             </div>
@@ -165,14 +197,25 @@ export default function DashboardPage() {
               />
             ) : null}
 
-            {(subscriptionsQuery.isError || analyticsQuery.isError) &&
-            !hasConnectionError ? (
+            {(subscriptionsQuery.isError || analyticsQuery.isError) && !hasConnectionError ? (
               <ErrorState
-                title="Unable to load dashboard data"
+                title={t("Unable to load dashboard data", {
+                  FR: "Impossible de charger le tableau de bord",
+                  RU: "Не удалось загрузить дашборд",
+                  GE: "Dashboard-Daten konnten nicht geladen werden",
+                  ES: "No se pudo cargar el panel",
+                  PT: "Nao foi possivel carregar o painel",
+                })}
                 message={
                   subscriptionsError.errorMessage ||
                   analyticsError.errorMessage ||
-                  "Please try again."
+                  t("Please try again.", {
+                    FR: "Veuillez reessayer.",
+                    RU: "Попробуйте еще раз.",
+                    GE: "Bitte versuchen Sie es erneut.",
+                    ES: "Vuelve a intentarlo.",
+                    PT: "Tente novamente.",
+                  })
                 }
                 onRetry={() => {
                   subscriptionsQuery.refetch();
@@ -181,124 +224,146 @@ export default function DashboardPage() {
               />
             ) : null}
 
-            <section className="grid gap-4 lg:grid-cols-[1.55fr_0.95fr]">
-              <div className="glass-hover rounded-3xl p-6 md:p-7">
-                <div className="flex flex-wrap items-start justify-between gap-5">
-                  <div className="max-w-2xl space-y-4">
-                    <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs uppercase tracking-[0.24em] text-[#9CA3AF]">
-                      Dashboard
-                    </div>
-                    <div>
-                      <p className="mb-2 text-sm text-[#9CA3AF]">Current monthly exposure</p>
-                      <h1 className="text-4xl font-semibold tracking-tight text-[#F9FAFB] md:text-5xl">
-                        {analytics ? formatCurrency(analytics.totalMonthlyCost, currency) : "-"}
-                      </h1>
-                    </div>
-                    <p className="max-w-xl text-sm leading-relaxed text-[#B8C0C7] md:text-base">
-                      Track, understand, and control every subscription from one view:
-                      renewals, category concentration, upcoming charges, and changes in monthly cost.
-                    </p>
-                  </div>
+            <section className="grid gap-5 lg:grid-cols-3">
+              <div className="glass-hover rounded-3xl p-7 lg:col-span-2">
+                <p className="mb-3 text-xs uppercase tracking-widest text-[#9CA3AF]">
+                  {t("Monthly total", {
+                    FR: "Total mensuel",
+                    RU: "Итого в месяц",
+                    GE: "Monatssumme",
+                    ES: "Total mensual",
+                    PT: "Total mensal",
+                    IT: "Totale mensile",
+                    PL: "Suma miesieczna",
+                    TR: "Aylik toplam",
+                    UZ: "Oylik jami",
+                  })}
+                </p>
+                <h1 className="mb-4 text-4xl font-semibold leading-none tracking-tight text-[#F9FAFB] md:text-5xl">
+                  {analytics ? formatCurrency(analytics.totalMonthlyCost, currency) : "-"}
+                </h1>
+                <p className="text-sm text-[#9CA3AF]">
+                  {t("Yearly:", {
+                    FR: "Annuel :",
+                    RU: "В год:",
+                    GE: "Jaehrlich:",
+                    ES: "Anual:",
+                    PT: "Anual:",
+                    IT: "Annuale:",
+                    PL: "Rocznie:",
+                    TR: "Yillik:",
+                    UZ: "Yillik:",
+                  })}{" "}
+                  <span className="font-medium text-[#F9FAFB]">
+                    {analytics ? formatCurrency(analytics.totalYearlyCost, currency) : "-"}
+                  </span>
+                </p>
 
-                  <div className="w-full max-w-sm space-y-3">
-                    <div className="glass-light rounded-2xl p-4">
-                      <p className="mb-2 text-xs uppercase tracking-[0.2em] text-[#9CA3AF]">
-                        Quick signals
-                      </p>
-                      <div className="space-y-2 text-sm">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[#9CA3AF]">Upcoming in 7 days</span>
-                          <span className="font-medium text-[#F9FAFB]">{urgentCharges.length}</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-[#9CA3AF]">Next 30-day total</span>
-                          <span className="font-medium text-[#F9FAFB]">{formatCurrency(upcomingTotal, currency)}</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-[#9CA3AF]">Top category</span>
-                          <span className="font-medium text-[#F9FAFB]">{topCategory?.category ?? "-"}</span>
-                        </div>
-                      </div>
+                {budgetLimit && analytics ? (
+                  <div className="mt-5">
+                    <div className="mb-2 flex items-center justify-between text-sm">
+                      <span className="text-[#9CA3AF]">
+                        {t("Budget", {
+                          FR: "Budget",
+                          RU: "Бюджет",
+                          GE: "Budget",
+                          ES: "Presupuesto",
+                          PT: "Orcamento",
+                          IT: "Budget",
+                          PL: "Budzet",
+                          TR: "Butce",
+                          UZ: "Budjet",
+                        })}
+                      </span>
+                      <span
+                        className={cn(
+                          "font-medium",
+                          budgetPercent && budgetPercent >= 100
+                            ? "text-[#F87171]"
+                            : budgetPercent && budgetPercent >= 80
+                              ? "text-[#F59E0B]"
+                              : "text-[#4ADE80]",
+                        )}
+                      >
+                        {formatCurrency(analytics.totalMonthlyCost, currency)} / {formatCurrency(budgetLimit, currency)}
+                      </span>
                     </div>
-
-                    {budgetLimit && analytics ? (
-                      <div className="glass-light rounded-2xl p-4">
-                        <div className="mb-2 flex items-center justify-between text-sm">
-                          <span className="text-[#9CA3AF]">Budget progress</span>
-                          <span
-                            className={cn(
-                              "font-medium",
-                              budgetPercent && budgetPercent >= 100
-                                ? "text-[#F97373]"
-                                : budgetPercent && budgetPercent >= 80
-                                  ? "text-[#F59E0B]"
-                                  : "text-[#4ADE80]",
-                            )}
-                          >
-                            {formatCurrency(analytics.totalMonthlyCost, currency)} / {formatCurrency(budgetLimit, currency)}
-                          </span>
-                        </div>
-                        <div className="h-2 overflow-hidden rounded-full bg-white/8">
-                          <div
-                            className={cn(
-                              "h-full rounded-full transition-all duration-500",
-                              budgetPercent && budgetPercent >= 100
-                                ? "bg-[#F97373]"
-                                : budgetPercent && budgetPercent >= 80
-                                  ? "bg-[#F59E0B]"
-                                  : "bg-[#4ADE80]",
-                            )}
-                            style={{ width: `${budgetPercent ?? 0}%` }}
-                          />
-                        </div>
-                      </div>
-                    ) : null}
+                    <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
+                      <div
+                        className={cn(
+                          "h-full rounded-full transition-all duration-700",
+                          budgetPercent && budgetPercent >= 100
+                            ? "bg-[#F87171]"
+                            : budgetPercent && budgetPercent >= 80
+                              ? "bg-[#F59E0B]"
+                              : "bg-[#4ADE80]",
+                        )}
+                        style={{ width: `${budgetPercent ?? 0}%` }}
+                      />
+                    </div>
                   </div>
-                </div>
+                ) : null}
               </div>
 
-              <div className="glass-hover rounded-3xl p-5 md:p-6">
-                <p className="mb-2 text-xs uppercase tracking-[0.2em] text-[#9CA3AF]">
-                  This month
-                </p>
-                <div className="space-y-4">
-                  <div>
-                    <p className="text-sm text-[#9CA3AF]">Trend vs previous month</p>
-                    <p
-                      className={cn(
-                        "text-3xl font-semibold tracking-tight md:text-4xl",
-                        monthlyTrend == null
-                          ? "text-[#F9FAFB]"
-                          : monthlyTrend > 0
-                            ? "text-[#F59E0B]"
-                            : monthlyTrend < 0
-                              ? "text-[#4ADE80]"
-                              : "text-[#FF7355]",
-                      )}
-                    >
-                      {monthlyTrend == null ? "-" : `${monthlyTrend > 0 ? "+" : ""}${monthlyTrend}%`}
-                    </p>
-                  </div>
-                  <div className="space-y-3 border-t border-white/10 pt-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-[#9CA3AF]">Yearly equivalent</span>
-                      <span className="text-sm font-medium text-[#F9FAFB]">
-                        {analytics ? formatCurrency(analytics.totalYearlyCost, currency) : "-"}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-[#9CA3AF]">Active subscriptions</span>
-                      <span className="text-sm font-medium text-[#F9FAFB]">
-                        {analytics?.activeSubscriptions ?? subscriptions.length}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-[#9CA3AF]">30-day charge total</span>
-                      <span className="text-sm font-medium text-[#F9FAFB]">
-                        {formatCurrency(upcomingTotal, currency)}
-                      </span>
-                    </div>
-                  </div>
+              <div className="space-y-4">
+                <div className="glass-hover rounded-3xl p-5">
+                  <p className="mb-2 text-xs uppercase tracking-widest text-[#9CA3AF]">
+                    {t("Active subscriptions", {
+                      FR: "Abonnements actifs",
+                      RU: "Активные подписки",
+                      GE: "Aktive Abos",
+                      ES: "Suscripciones activas",
+                      PT: "Assinaturas ativas",
+                      IT: "Abbonamenti attivi",
+                      PL: "Aktywne subskrypcje",
+                      TR: "Aktif abonelikler",
+                      UZ: "Faol obunalar",
+                    })}
+                  </p>
+                  <p className="text-3xl font-semibold tracking-tight text-[#38BDF8]">
+                    {analytics?.activeSubscriptions ?? subscriptions.length}
+                  </p>
+                </div>
+                <div className="glass-hover rounded-3xl p-5">
+                  <p className="mb-2 text-xs uppercase tracking-widest text-[#9CA3AF]">
+                    {t("This month", {
+                      FR: "Ce mois-ci",
+                      RU: "Этот месяц",
+                      GE: "Dieser Monat",
+                      ES: "Este mes",
+                      PT: "Este mes",
+                      IT: "Questo mese",
+                      PL: "Ten miesiac",
+                      TR: "Bu ay",
+                      UZ: "Bu oy",
+                    })}
+                  </p>
+                  <p
+                    className={cn(
+                      "text-3xl font-semibold tracking-tight",
+                      monthlyTrend == null
+                        ? "text-[#F9FAFB]"
+                        : monthlyTrend > 0
+                          ? "text-[#F59E0B]"
+                          : monthlyTrend < 0
+                            ? "text-[#4ADE80]"
+                            : "text-[#FF7355]",
+                    )}
+                  >
+                    {monthlyTrend == null ? "-" : `${monthlyTrend > 0 ? "+" : ""}${monthlyTrend}%`}
+                  </p>
+                  <p className="mt-2 text-sm text-[#9CA3AF]">
+                    {t("30-day total", {
+                      FR: "Total sur 30 jours",
+                      RU: "Итого за 30 дней",
+                      GE: "30-Tage-Summe",
+                      ES: "Total de 30 dias",
+                      PT: "Total de 30 dias",
+                    })}:{" "}
+                    <span className="font-medium text-[#F9FAFB]">
+                      {formatCurrency(upcomingTotal, currency)}
+                    </span>
+                  </p>
                 </div>
               </div>
             </section>
@@ -306,30 +371,30 @@ export default function DashboardPage() {
             <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               {[
                 {
-                  label: "Active subscriptions",
+                  label: t("Active subscriptions", { FR: "Abonnements actifs", RU: "Активные подписки", ES: "Suscripciones activas", PT: "Assinaturas ativas" }),
                   value: String(analytics?.activeSubscriptions ?? subscriptions.length),
                   tone: "text-[#F9FAFB]",
-                  detail: "Currently billing or available",
+                  detail: t("Currently billing or available", { FR: "Actifs ou disponibles", RU: "Активны или доступны", ES: "Activas o disponibles", PT: "Ativas ou disponiveis" }),
                 },
                 {
-                  label: "Urgent renewals",
+                  label: t("Urgent renewals", { FR: "Renouvellements urgents", RU: "Срочные продления", ES: "Renovaciones urgentes", PT: "Renovacoes urgentes" }),
                   value: String(urgentCharges.length),
                   tone: urgentCharges.length > 0 ? "text-[#F59E0B]" : "text-[#F9FAFB]",
-                  detail: "Due within the next 7 days",
+                  detail: t("Due within the next 7 days", { FR: "Dus dans les 7 prochains jours", RU: "Списание в ближайшие 7 дней", ES: "Vence en los proximos 7 dias", PT: "Vence nos proximos 7 dias" }),
                 },
                 {
-                  label: "Next 30-day total",
+                  label: t("Next 30-day total", { FR: "Total 30 jours", RU: "Итого за 30 дней", ES: "Total de 30 dias", PT: "Total de 30 dias" }),
                   value: formatCurrency(upcomingTotal, currency),
                   tone: "text-[#F9FAFB]",
-                  detail: "Projected total of scheduled charges in the next 30 days",
+                  detail: t("Projected total of scheduled charges in the next 30 days", { FR: "Montant prevu des paiements a venir", RU: "Прогноз по запланированным списаниям на 30 дней", ES: "Total previsto de cobros programados en 30 dias", PT: "Total previsto de cobrancas programadas em 30 dias" }),
                 },
                 {
-                  label: "Category leader",
+                  label: t("Category leader", { FR: "Categorie principale", RU: "Главная категория", ES: "Categoria principal", PT: "Categoria principal" }),
                   value: topCategory?.category ?? "-",
                   tone: "text-[#38BDF8]",
                   detail: topCategory
-                    ? `${formatCurrency(topCategory.total, currency)} / month`
-                    : "Waiting for enough data",
+                    ? `${formatCurrency(topCategory.total, currency)} / ${t("month", { FR: "mois", RU: "месяц", ES: "mes", PT: "mes" })}`
+                    : t("Waiting for enough data", { FR: "En attente de donnees", RU: "Недостаточно данных", ES: "Esperando mas datos", PT: "Aguardando mais dados" }),
                 },
               ].map((item) => (
                 <div key={item.label} className="glass-hover rounded-3xl p-5">
@@ -348,19 +413,26 @@ export default function DashboardPage() {
               <div className="glass-hover rounded-3xl p-6">
                 <div className="mb-5 flex items-center justify-between">
                   <div>
-                    <h2 className="text-xl font-semibold text-[#F9FAFB]">Upcoming charges</h2>
+                    <h2 className="text-xl font-semibold text-[#F9FAFB]">
+                      {t("Upcoming charges", { FR: "Paiements a venir", RU: "Предстоящие списания", ES: "Cobros впереди", PT: "Cobrancas futuras" })}
+                    </h2>
                     <p className="text-sm text-[#9CA3AF]">
-                      Switch between the classic timeline and the compact list
+                      {t("Switch between the classic list and the compact timeline", {
+                        FR: "Basculez entre la liste classique et la chronologie compacte",
+                        RU: "Переключайтесь между классическим списком и компактной шкалой",
+                        ES: "Alterna entre la lista clasica y la linea temporal compacta",
+                        PT: "Alterne entre a lista classica e a linha do tempo compacta",
+                      })}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="flex rounded-2xl border border-white/10 bg-white/5 p-1">
                       <button
                         type="button"
-                        onClick={() => setUpcomingView("timeline")}
+                        onClick={() => setUpcomingView("list")}
                         className={cn(
                           "rounded-xl px-3 py-2 text-xs font-medium uppercase tracking-[0.18em] transition",
-                          upcomingView === "timeline"
+                          upcomingView === "list"
                             ? "bg-[#4ADE80] text-[#05111A]"
                             : "text-[#9CA3AF] hover:text-[#F9FAFB]",
                         )}
@@ -369,10 +441,10 @@ export default function DashboardPage() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => setUpcomingView("list")}
+                        onClick={() => setUpcomingView("timeline")}
                         className={cn(
                           "rounded-xl px-3 py-2 text-xs font-medium uppercase tracking-[0.18em] transition",
-                          upcomingView === "list"
+                          upcomingView === "timeline"
                             ? "bg-[#4ADE80] text-[#05111A]"
                             : "text-[#9CA3AF] hover:text-[#F9FAFB]",
                         )}
@@ -384,16 +456,50 @@ export default function DashboardPage() {
                       href="/subscriptions"
                       className="text-sm text-[#38BDF8] transition-colors hover:text-[#7DD3FC]"
                     >
-                      Manage list
+                      {t("Manage list", { FR: "Voir la liste", RU: "К списку", ES: "Gestionar lista", PT: "Gerenciar lista" })}
                     </Link>
                   </div>
                 </div>
 
                 {upcomingCharges.length === 0 ? (
-                  <StatusBanner tone="neutral" title="Nothing scheduled">
-                    No active subscriptions are due in the next 30 days.
+                  <StatusBanner tone="neutral" title={t("Nothing scheduled", { FR: "Aucun paiement prevu", RU: "Ничего не запланировано", ES: "Nada programado", PT: "Nada agendado" })}>
+                    {t("No active subscriptions are due in the next 30 days.", { FR: "Aucun abonnement actif n'est du dans les 30 prochains jours.", RU: "В ближайшие 30 дней активных списаний нет.", ES: "No hay suscripciones activas para los proximos 30 dias.", PT: "Nenhuma assinatura ativa vence nos proximos 30 dias." })}
                   </StatusBanner>
-                ) : upcomingView === "timeline" ? (
+                ) : upcomingView === "list" ? (
+                  <div className="space-y-3">
+                    {upcomingCharges.slice(0, 7).map((subscription) => {
+                      const daysUntil = getDaysUntil(subscription.nextChargeDate);
+
+                      return (
+                        <Link
+                          key={subscription.id}
+                          href={`/subscriptions/${subscription.id}`}
+                          className="glass-light flex items-center justify-between gap-4 rounded-2xl p-4 transition-colors hover:bg-white/8"
+                        >
+                          <div className="min-w-0">
+                            <p className="truncate font-medium text-[#F9FAFB]">
+                              {subscription.name}
+                            </p>
+                            <p className="text-sm text-[#9CA3AF]">
+                              {formatDateShort(subscription.nextChargeDate)}
+                            </p>
+                          </div>
+                          <div className="shrink-0 text-right">
+                            <p className="text-sm font-semibold text-[#F9FAFB]">
+                              {formatCurrency(subscription.price, currency)}
+                            </p>
+                            <Tag
+                              variant={daysUntil <= 2 ? "error" : daysUntil <= 7 ? "warning" : "info"}
+                              size="sm"
+                            >
+                              {daysUntil <= 0 ? "Today" : daysUntil === 1 ? "Tomorrow" : `${daysUntil} days`}
+                            </Tag>
+                          </div>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                ) : (
                   <div className="space-y-1">
                     {upcomingCharges.slice(0, 7).map((subscription, index) => {
                       const daysUntil = getDaysUntil(subscription.nextChargeDate);
@@ -440,76 +546,32 @@ export default function DashboardPage() {
                       );
                     })}
                   </div>
-                ) : (
-                  <div className="space-y-3">
-                    {upcomingCharges.slice(0, 7).map((subscription) => {
-                      const daysUntil = getDaysUntil(subscription.nextChargeDate);
-
-                      return (
-                        <Link
-                          key={subscription.id}
-                          href={`/subscriptions/${subscription.id}`}
-                          className="glass-light flex items-center justify-between gap-4 rounded-2xl p-4 transition-colors hover:bg-white/8"
-                        >
-                          <div className="min-w-0">
-                            <p className="truncate font-medium text-[#F9FAFB]">
-                              {subscription.name}
-                            </p>
-                            <p className="text-sm text-[#9CA3AF]">
-                              {formatDateShort(subscription.nextChargeDate)}
-                            </p>
-                          </div>
-                          <div className="shrink-0 text-right">
-                            <p className="text-sm font-semibold text-[#F9FAFB]">
-                              {formatCurrency(subscription.price, currency)}
-                            </p>
-                            <Tag
-                              variant={
-                                daysUntil <= 2
-                                  ? "error"
-                                  : daysUntil <= 7
-                                    ? "warning"
-                                    : "info"
-                              }
-                              size="sm"
-                            >
-                              {daysUntil <= 0
-                                ? "Today"
-                                : daysUntil === 1
-                                  ? "Tomorrow"
-                                  : `${daysUntil} days`}
-                            </Tag>
-                          </div>
-                        </Link>
-                      );
-                    })}
-                  </div>
                 )}
               </div>
 
               <div className="grid gap-6">
                 <div className="glass-hover rounded-3xl p-6">
                   <h2 className="mb-1 text-xl font-semibold text-[#F9FAFB]">
-                    Category concentration
+                    {t("Category concentration", { FR: "Concentration par categorie", RU: "Концентрация по категориям", ES: "Concentracion por categoria", PT: "Concentracao por categoria" })}
                   </h2>
                   <p className="mb-5 text-sm text-[#9CA3AF]">
-                    Where your monthly recurring budget is concentrated
+                    {t("Where your monthly recurring budget is concentrated", { FR: "Ou se concentre votre budget recurrent", RU: "Где сосредоточен ежемесячный бюджет", ES: "Donde se concentra tu presupuesto mensual", PT: "Onde seu orcamento mensal esta concentrado" })}
                   </p>
                   {categoryData.length > 0 ? (
                     <DonutChart data={categoryData} />
                   ) : (
-                    <StatusBanner tone="neutral" title="No category data yet">
-                      Add subscriptions with categories to understand where spending clusters.
+                    <StatusBanner tone="neutral" title={t("No category data yet", { FR: "Pas encore de donnees", RU: "Пока нет данных", ES: "Aun no hay datos", PT: "Ainda nao ha dados" })}>
+                      {t("Add subscriptions with categories to understand where spending clusters.", { FR: "Ajoutez des abonnements avec categorie pour voir la repartition.", RU: "Добавьте подписки с категориями, чтобы видеть структуру расходов.", ES: "Agrega suscripciones con categoria para ver la distribucion.", PT: "Adicione assinaturas com categoria para ver a distribuicao." })}
                     </StatusBanner>
                   )}
                 </div>
 
                 <div className="glass-hover rounded-3xl p-6">
                   <h2 className="mb-1 text-xl font-semibold text-[#F9FAFB]">
-                    Smart signals
+                    {t("Smart signals", { FR: "Signaux utiles", RU: "Полезные сигналы", ES: "Senales utiles", PT: "Sinais uteis" })}
                   </h2>
                   <p className="mb-5 text-sm text-[#9CA3AF]">
-                    Useful billing events and anomalies detected from current data
+                    {t("Useful billing events and anomalies detected from current data", { FR: "Evenements et anomalies detectes dans vos paiements", RU: "Важные события и аномалии в текущих платежах", ES: "Eventos y anomalias detectadas en tus pagos", PT: "Eventos e anomalias detectados nos pagamentos" })}
                   </p>
                   {alerts.length > 0 ? (
                     <div className="space-y-3">
@@ -517,15 +579,17 @@ export default function DashboardPage() {
                         <StatusBanner
                           key={`${alert.type}-${index}`}
                           tone={alert.type === "PRECHARGE" ? "info" : "neutral"}
-                          title={alert.type === "PRECHARGE" ? "Upcoming charge" : "Billing insight"}
+                          title={alert.type === "PRECHARGE"
+                            ? t("Upcoming charge", { FR: "Paiement a venir", RU: "Скорое списание", ES: "Cobro proximo", PT: "Cobranca futura" })
+                            : t("Billing insight", { FR: "Analyse", RU: "Инсайт", ES: "Insight", PT: "Insight" })}
                         >
                           {alert.message}
                         </StatusBanner>
                       ))}
                     </div>
                   ) : (
-                    <StatusBanner tone="success" title="No urgent anomalies">
-                      Nothing looks unusually risky right now. Your recurring spend appears stable.
+                    <StatusBanner tone="success" title={t("No urgent anomalies", { FR: "Aucune anomalie urgente", RU: "Срочных аномалий нет", ES: "No hay anomalias urgentes", PT: "Nao ha anomalias urgentes" })}>
+                      {t("Nothing looks unusually risky right now. Your recurring spend appears stable.", { FR: "Rien ne semble anormalement risqué pour le moment.", RU: "Сейчас ничего необычно рискованного не видно.", ES: "Nada parece inusualmente riesgoso por ahora.", PT: "Nada parece incomumente arriscado agora." })}
                     </StatusBanner>
                   )}
                 </div>
@@ -533,15 +597,17 @@ export default function DashboardPage() {
             </section>
 
             <section className="glass-hover rounded-3xl p-6">
-              <h2 className="mb-1 text-xl font-semibold text-[#F9FAFB]">Spending trend</h2>
+              <h2 className="mb-1 text-xl font-semibold text-[#F9FAFB]">
+                {t("Spending trend", { FR: "Tendance des depenses", RU: "Тренд расходов", ES: "Tendencia de gasto", PT: "Tendencia de gastos" })}
+              </h2>
               <p className="mb-5 text-sm text-[#9CA3AF]">
-                Six-month view of recurring expense movement
+                {t("Six-month view of recurring expense movement", { FR: "Vue sur six mois de l'evolution des depenses recurrentes", RU: "Динамика регулярных расходов за шесть месяцев", ES: "Vista de seis meses del movimiento de gastos", PT: "Visao de seis meses da evolucao dos gastos recorrentes" })}
               </p>
               {chartData.length > 0 ? (
                 <Chart data={chartData} dataKey="value" type="area" color="#4ADE80" />
               ) : (
-                <StatusBanner tone="neutral" title="Waiting for trend data">
-                  A few subscriptions are enough to start building a useful monthly history.
+                <StatusBanner tone="neutral" title={t("Waiting for trend data", { FR: "En attente de donnees", RU: "Ожидание данных", ES: "Esperando datos", PT: "Aguardando dados" })}>
+                  {t("A few subscriptions are enough to start building a useful monthly history.", { FR: "Quelques abonnements suffisent pour commencer l'historique mensuel.", RU: "Нескольких подписок достаточно, чтобы построить историю расходов.", ES: "Unas pocas suscripciones bastan para iniciar el historial.", PT: "Algumas assinaturas ja bastam para iniciar o historico." })}
                 </StatusBanner>
               )}
             </section>
