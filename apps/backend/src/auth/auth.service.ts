@@ -28,12 +28,12 @@ export class AuthService {
       throw new ConflictException("User with this email already exists");
     }
 
-    const passwordHash = await bcrypt.hash(dto.password, 10);
+    const hashedPassword = await bcrypt.hash(dto.password, 10);
 
     const user = await this.prisma.user.create({
       data: {
         email: dto.email,
-        passwordHash,
+        passwordHash: hashedPassword,
         currency: dto.currency || "USD",
       },
     });
