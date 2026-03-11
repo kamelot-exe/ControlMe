@@ -181,87 +181,124 @@ export default function DashboardPage() {
               />
             ) : null}
 
-            <section className="grid gap-5 lg:grid-cols-3">
-              <div className="glass-hover rounded-3xl p-8 lg:col-span-2">
-                <p className="mb-3 text-xs uppercase tracking-widest text-[#9CA3AF]">
-                  Monthly total
-                </p>
-                <h1 className="mb-4 text-5xl font-semibold leading-none tracking-tight text-[#F9FAFB] md:text-6xl">
-                  {analytics ? formatCurrency(analytics.totalMonthlyCost, currency) : "-"}
-                </h1>
-                <p className="text-[#9CA3AF]">
-                  Yearly:{" "}
-                  <span className="font-medium text-[#F9FAFB]">
-                    {analytics ? formatCurrency(analytics.totalYearlyCost, currency) : "-"}
-                  </span>
-                </p>
-
-                {budgetLimit && analytics ? (
-                  <div className="mt-5">
-                    <div className="mb-2 flex items-center justify-between text-sm">
-                      <span className="text-[#9CA3AF]">Budget</span>
-                      <span
-                        className={cn(
-                          "font-medium",
-                          budgetPercent && budgetPercent >= 100
-                            ? "text-[#F87171]"
-                            : budgetPercent && budgetPercent >= 80
-                              ? "text-[#F59E0B]"
-                              : "text-[#4ADE80]",
-                        )}
-                      >
-                        {formatCurrency(analytics.totalMonthlyCost, currency)} /{" "}
-                        {formatCurrency(budgetLimit, currency)}
-                      </span>
+            <section className="grid gap-4 lg:grid-cols-[1.55fr_0.95fr]">
+              <div className="glass-hover rounded-3xl p-6 md:p-7">
+                <div className="flex flex-wrap items-start justify-between gap-5">
+                  <div className="max-w-2xl space-y-4">
+                    <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs uppercase tracking-[0.24em] text-[#9CA3AF]">
+                      Dashboard
                     </div>
-                    <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
-                      <div
-                        className={cn(
-                          "h-full rounded-full transition-all duration-700",
-                          budgetPercent && budgetPercent >= 100
-                            ? "bg-[#F87171]"
-                            : budgetPercent && budgetPercent >= 80
-                              ? "bg-[#F59E0B]"
-                              : "bg-[#4ADE80]",
-                        )}
-                        style={{ width: `${budgetPercent ?? 0}%` }}
-                      />
+                    <div>
+                      <p className="mb-2 text-sm text-[#9CA3AF]">Current monthly exposure</p>
+                      <h1 className="text-4xl font-semibold tracking-tight text-[#F9FAFB] md:text-5xl">
+                        {analytics ? formatCurrency(analytics.totalMonthlyCost, currency) : "-"}
+                      </h1>
                     </div>
+                    <p className="max-w-xl text-sm leading-relaxed text-[#B8C0C7] md:text-base">
+                      Track, understand, and control every subscription from one view:
+                      renewals, category concentration, upcoming charges, and changes in monthly cost.
+                    </p>
                   </div>
-                ) : null}
+
+                  <div className="w-full max-w-sm space-y-3">
+                    <div className="glass-light rounded-2xl p-4">
+                      <p className="mb-2 text-xs uppercase tracking-[0.2em] text-[#9CA3AF]">
+                        Quick signals
+                      </p>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[#9CA3AF]">Upcoming in 7 days</span>
+                          <span className="font-medium text-[#F9FAFB]">{urgentCharges.length}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[#9CA3AF]">Next 30-day total</span>
+                          <span className="font-medium text-[#F9FAFB]">{formatCurrency(upcomingTotal, currency)}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[#9CA3AF]">Top category</span>
+                          <span className="font-medium text-[#F9FAFB]">{topCategory?.category ?? "-"}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {budgetLimit && analytics ? (
+                      <div className="glass-light rounded-2xl p-4">
+                        <div className="mb-2 flex items-center justify-between text-sm">
+                          <span className="text-[#9CA3AF]">Budget progress</span>
+                          <span
+                            className={cn(
+                              "font-medium",
+                              budgetPercent && budgetPercent >= 100
+                                ? "text-[#F97373]"
+                                : budgetPercent && budgetPercent >= 80
+                                  ? "text-[#F59E0B]"
+                                  : "text-[#4ADE80]",
+                            )}
+                          >
+                            {formatCurrency(analytics.totalMonthlyCost, currency)} / {formatCurrency(budgetLimit, currency)}
+                          </span>
+                        </div>
+                        <div className="h-2 overflow-hidden rounded-full bg-white/8">
+                          <div
+                            className={cn(
+                              "h-full rounded-full transition-all duration-500",
+                              budgetPercent && budgetPercent >= 100
+                                ? "bg-[#F97373]"
+                                : budgetPercent && budgetPercent >= 80
+                                  ? "bg-[#F59E0B]"
+                                  : "bg-[#4ADE80]",
+                            )}
+                            style={{ width: `${budgetPercent ?? 0}%` }}
+                          />
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
               </div>
 
-              <div className="space-y-4">
-                <div className="glass-hover rounded-3xl p-6">
-                  <p className="mb-2 text-xs uppercase tracking-widest text-[#9CA3AF]">
-                    Active subscriptions
-                  </p>
-                  <p className="text-4xl font-semibold tracking-tight text-[#38BDF8]">
-                    {analytics?.activeSubscriptions ?? subscriptions.length}
-                  </p>
-                </div>
-
-                <div className="glass-hover rounded-3xl p-6">
-                  <p className="mb-2 text-xs uppercase tracking-widest text-[#9CA3AF]">
-                    This month
-                  </p>
-                  <p
-                    className={cn(
-                      "text-4xl font-semibold tracking-tight",
-                      monthlyTrend == null
-                        ? "text-[#F9FAFB]"
-                        : monthlyTrend > 0
-                          ? "text-[#F59E0B]"
-                          : monthlyTrend < 0
-                            ? "text-[#4ADE80]"
-                            : "text-[#38BDF8]",
-                    )}
-                  >
-                    {monthlyTrend == null ? "-" : `${monthlyTrend > 0 ? "+" : ""}${monthlyTrend}%`}
-                  </p>
-                  <p className="mt-2 text-sm text-[#9CA3AF]">
-                    Trend vs previous month
-                  </p>
+              <div className="glass-hover rounded-3xl p-5 md:p-6">
+                <p className="mb-2 text-xs uppercase tracking-[0.2em] text-[#9CA3AF]">
+                  This month
+                </p>
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-sm text-[#9CA3AF]">Trend vs previous month</p>
+                    <p
+                      className={cn(
+                        "text-3xl font-semibold tracking-tight md:text-4xl",
+                        monthlyTrend == null
+                          ? "text-[#F9FAFB]"
+                          : monthlyTrend > 0
+                            ? "text-[#F59E0B]"
+                            : monthlyTrend < 0
+                              ? "text-[#4ADE80]"
+                              : "text-[#FF7355]",
+                      )}
+                    >
+                      {monthlyTrend == null ? "-" : `${monthlyTrend > 0 ? "+" : ""}${monthlyTrend}%`}
+                    </p>
+                  </div>
+                  <div className="space-y-3 border-t border-white/10 pt-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-[#9CA3AF]">Yearly equivalent</span>
+                      <span className="text-sm font-medium text-[#F9FAFB]">
+                        {analytics ? formatCurrency(analytics.totalYearlyCost, currency) : "-"}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-[#9CA3AF]">Active subscriptions</span>
+                      <span className="text-sm font-medium text-[#F9FAFB]">
+                        {analytics?.activeSubscriptions ?? subscriptions.length}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-[#9CA3AF]">30-day charge total</span>
+                      <span className="text-sm font-medium text-[#F9FAFB]">
+                        {formatCurrency(upcomingTotal, currency)}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </section>

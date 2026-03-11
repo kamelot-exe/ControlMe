@@ -48,8 +48,8 @@ export default function NewSubscriptionPage() {
   return (
     <ProtectedRoute>
       <AppShell>
-        <div className="flex min-h-[calc(100vh-2rem)] justify-center px-8 py-8 md:px-10 md:py-10 lg:px-12 lg:py-12">
-          <div className="flex w-full max-w-5xl justify-center animate-fade-in">
+        <div className="min-h-[calc(100vh-2rem)] px-8 py-8 md:px-10 md:py-10 lg:px-12 lg:py-12">
+          <div className="w-full max-w-5xl animate-fade-in">
             <div className="w-full max-w-4xl space-y-8">
               <Link
                 href="/subscriptions"

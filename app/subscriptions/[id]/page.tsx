@@ -14,7 +14,7 @@ import {
 } from "@/components/subscriptions/subscription-catalog";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { ErrorState, StatusBanner, Tag } from "@/components/ui";
+import { ErrorState, StatusBanner, Tag, useAppUi } from "@/components/ui";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { SkeletonCard } from "@/components/ui/Skeleton";
 import { useMe } from "@/hooks/use-auth";
@@ -62,6 +62,7 @@ export default function SubscriptionDetailPage({
   const meQuery = useMe();
   const updateMutation = useUpdateSubscription();
   const deleteMutation = useDeleteSubscription();
+  const { showToast } = useAppUi();
 
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -146,7 +147,10 @@ export default function SubscriptionDetailPage({
         data: formData,
       });
       setIsEditing(false);
-      setFeedback({ tone: "success", message: "Subscription updated." });
+      showToast("Changes saved.");
+      window.setTimeout(() => {
+        router.back();
+      }, 2000);
     } catch (error) {
       setFeedback({
         tone: "error",

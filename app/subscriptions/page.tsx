@@ -143,7 +143,7 @@ export default function SubscriptionsPage() {
               />
             ) : null}
 
-            <section className="rounded-[32px] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.18),transparent_28%),linear-gradient(135deg,rgba(10,17,32,0.98),rgba(5,8,22,0.95))] p-7 md:p-8">
+            <section className="rounded-[32px] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(255,115,85,0.18),transparent_28%),linear-gradient(135deg,rgba(10,17,32,0.98),rgba(5,8,22,0.95))] p-7 md:p-8">
               <div className="grid gap-8 lg:grid-cols-[1.35fr_0.95fr]">
                 <div className="space-y-4">
                   <Tag variant="success" size="md">
@@ -188,7 +188,7 @@ export default function SubscriptionsPage() {
                   </div>
                   <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                     <p className="text-xs uppercase tracking-[0.24em] text-[#6B7280]">Due soon</p>
-                    <p className="mt-3 text-2xl font-semibold text-[#7DD3FC]">{upcomingCount}</p>
+                    <p className="mt-3 text-2xl font-semibold text-[#FF7355]">{upcomingCount}</p>
                   </div>
                 </div>
               </div>
@@ -217,13 +217,30 @@ export default function SubscriptionsPage() {
                   onChange={(event) => setGroupFilter(event.target.value)}
                   className="app-select rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-[#F9FAFB] outline-none transition focus:border-[#4ADE80]/35"
                 >
-                  <option value="">All groups</option>
+                  <option value="">Group</option>
                   {groupOptions.map((group) => (
                     <option key={group} value={group}>
                       {group}
                     </option>
                   ))}
                 </select>
+
+                <div className="flex rounded-2xl border border-white/10 bg-white/5 p-1">
+                  {(["all", "DAILY", "MONTHLY", "YEARLY"] as const).map((value) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setBillingFilter(value)}
+                      className={`flex-1 rounded-xl px-3 py-2 text-sm font-medium transition ${
+                        billingFilter === value
+                          ? "bg-[#FF7355] text-[#05111A]"
+                          : "text-[#9CA3AF] hover:text-[#F9FAFB]"
+                      }`}
+                    >
+                      {value === "all" ? "All" : formatBillingPeriod(value)}
+                    </button>
+                  ))}
+                </div>
 
                 <div className="flex rounded-2xl border border-white/10 bg-white/5 p-1">
                   {(["all", "active", "inactive"] as const).map((value) => (
@@ -238,23 +255,6 @@ export default function SubscriptionsPage() {
                       }`}
                     >
                       {value}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="flex rounded-2xl border border-white/10 bg-white/5 p-1">
-                  {(["all", "DAILY", "MONTHLY", "YEARLY"] as const).map((value) => (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => setBillingFilter(value)}
-                      className={`flex-1 rounded-xl px-3 py-2 text-sm font-medium transition ${
-                        billingFilter === value
-                          ? "bg-[#38BDF8]/16 text-[#7DD3FC]"
-                          : "text-[#9CA3AF] hover:text-[#F9FAFB]"
-                      }`}
-                    >
-                      {value === "all" ? "All" : formatBillingPeriod(value)}
                     </button>
                   ))}
                 </div>

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Save, Trash2, X } from "lucide-react";
 import type { Subscription } from "@/shared/types";
 import { useDeleteSubscription, useUpdateSubscription } from "@/hooks/use-subscriptions";
+import { useAppUi } from "@/components/ui";
 import { NeedScoreSlider } from "./NeedScoreSlider";
 import { SubscriptionNamePicker } from "./SubscriptionNamePicker";
 import {
@@ -23,6 +24,7 @@ export function SubscriptionDrawer({
 }: SubscriptionDrawerProps) {
   const updateSubscription = useUpdateSubscription();
   const deleteSubscription = useDeleteSubscription();
+  const { showToast } = useAppUi();
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const [form, setForm] = useState({
@@ -81,6 +83,7 @@ export function SubscriptionDrawer({
           notes: form.notes || undefined,
         },
       });
+      showToast("Changes saved.");
       onClose();
     } catch {
       // Mutation error is surfaced by the query layer.
