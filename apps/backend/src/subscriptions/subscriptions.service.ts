@@ -11,12 +11,28 @@ import { UpdateSubscriptionDto } from "./dto/update-subscription.dto";
 export class SubscriptionsService {
   constructor(private prisma: PrismaService) {}
 
+  private resolveCategory(
+    category?: string | null,
+    serviceGroup?: string | null,
+  ) {
+    if (category && !["General", "Subscription"].includes(category)) {
+      return category;
+    }
+
+    if (serviceGroup) {
+      return serviceGroup;
+    }
+
+    return "Subscription";
+  }
+
   async create(userId: string, dto: CreateSubscriptionDto) {
     const subscription = await this.prisma.subscription.create({
       data: {
         ...dto,
         userId,
         price: dto.price,
+        category: this.resolveCategory(dto.category, dto.serviceGroup),
         serviceGroup: dto.serviceGroup || null,
         needScore: dto.needScore ?? 70,
         websiteUrl: dto.websiteUrl || null,
@@ -82,8 +98,20 @@ export class SubscriptionsService {
     if (dto.websiteUrl !== undefined) {
       updateData.websiteUrl = dto.websiteUrl || null;
     }
+    if (dto.category !== undefined) {
+      updateData.category = this.resolveCategory(
+        dto.category,
+        dto.serviceGroup,
+      );
+    }
     if (dto.serviceGroup !== undefined) {
       updateData.serviceGroup = dto.serviceGroup || null;
+      if (
+        dto.category === undefined ||
+        ["General", "Subscription"].includes(dto.category)
+      ) {
+        updateData.category = dto.serviceGroup || "Subscription";
+      }
     }
     if (dto.needScore !== undefined) {
       updateData.needScore = dto.needScore;

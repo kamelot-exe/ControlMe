@@ -66,3 +66,34 @@ model NotificationSettings {
 
   @@map("notification_settings")
 }
+
+model ServiceCatalogEntry {
+  id               String   @id @default(uuid())
+  service          String
+  group            String
+  subcategory      String
+  similarityGroup  String   @map("similarity_group")
+  region           String
+  country          String
+  plan             String
+  price            Decimal  @db.Decimal(12, 2)
+  currency         String
+  billingPeriod    String   @map("billing_period")
+  website          String
+  logoHint         String   @map("logo_hint")
+  priority         String
+  defaultNeedScore Int      @map("default_need_score")
+  planRank         Int      @default(1) @map("plan_rank")
+  isFamilyPlan     Boolean  @default(false) @map("is_family_plan")
+  isStudentPlan    Boolean  @default(false) @map("is_student_plan")
+  isBusinessPlan   Boolean  @default(false) @map("is_business_plan")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@unique([service, country, plan, currency, billingPeriod], map: "service_catalog_unique_entry")
+  @@index([service], map: "service_catalog_service_idx")
+  @@index([similarityGroup], map: "service_catalog_similarity_group_idx")
+  @@index([region, country], map: "service_catalog_region_country_idx")
+  @@index([group], map: "service_catalog_group_idx")
+  @@map("service_catalog_entries")
+}

@@ -7,7 +7,11 @@ import { ArrowLeft, Globe, Pencil, Trash2 } from "lucide-react";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { AppShell } from "@/components/layout/AppShell";
 import { NeedScoreSlider } from "@/components/subscriptions/NeedScoreSlider";
-import { SubscriptionNamePicker } from "@/components/subscriptions/SubscriptionNamePicker";
+import {
+  SubscriptionNamePicker,
+  type CatalogSuggestion,
+} from "@/components/subscriptions/SubscriptionNamePicker";
+import { ServiceBadge } from "@/components/subscriptions/ServiceBadge";
 import {
   DEFAULT_SUBSCRIPTION_CATEGORY,
   SERVICE_GROUP_OPTIONS,
@@ -25,6 +29,8 @@ import {
   useUpdateSubscription,
 } from "@/hooks/use-subscriptions";
 import { evaluateSubscriptionReview } from "@/lib/subscriptions/review";
+import { translate } from "@/lib/i18n";
+import { getLocalizedCategoryName } from "@/lib/subscriptions/categories";
 import { cn } from "@/lib/utils";
 import {
   formatBillingPeriod,
@@ -35,21 +41,6 @@ import {
   toYearlyEquivalent,
 } from "@/lib/utils/format";
 import type { BillingPeriod, Currency, UpdateSubscriptionDto } from "@/shared/types";
-
-const categoryBadges: Record<string, string> = {
-  Streaming: "TV",
-  Software: "APP",
-  Gym: "FIT",
-  Music: "SND",
-  Cloud: "CLD",
-  News: "NWS",
-  Education: "EDU",
-  Gaming: "GME",
-  Finance: "FIN",
-  Other: "SUB",
-  General: "SUB",
-  Subscription: "SUB",
-};
 
 export default function SubscriptionDetailPage({
   params,
@@ -62,7 +53,9 @@ export default function SubscriptionDetailPage({
   const meQuery = useMe();
   const updateMutation = useUpdateSubscription();
   const deleteMutation = useDeleteSubscription();
-  const { showToast } = useAppUi();
+  const { showToast, language } = useAppUi();
+  const t = (fallback: string, values?: Record<string, string>) =>
+    translate(language, (values ?? {}) as Record<typeof language, string>, fallback);
 
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -115,8 +108,8 @@ export default function SubscriptionDetailPage({
           <div className="p-8 md:p-10 lg:p-12">
             <div className="max-w-5xl">
               <ErrorState
-                title="Subscription not found"
-                message="The subscription could not be loaded or no longer exists."
+                title={t("Subscription not found", { FR: "Abonnement introuvable", RU: "Подписка не найдена", ES: "Suscripcion no encontrada", PT: "Assinatura nao encontrada" })}
+                message={t("The subscription could not be loaded or no longer exists.", { FR: "L'abonnement est introuvable ou n'existe plus.", RU: "Подписка не загрузилась или больше не существует.", ES: "La suscripcion no se pudo cargar o ya no existe.", PT: "A assinatura nao pode ser carregada ou nao existe mais." })}
                 onRetry={() => router.push("/subscriptions")}
               />
             </div>
@@ -129,13 +122,24 @@ export default function SubscriptionDetailPage({
   const daysUntil = getDaysUntil(subscription.nextChargeDate);
   const monthlyEquivalent = toMonthlyEquivalent(subscription.price, subscription.billingPeriod);
   const yearlyEquivalent = toYearlyEquivalent(subscription.price, subscription.billingPeriod);
-  const icon = categoryBadges[subscription.category] ?? categoryBadges.Other;
   const nextChargeTone = daysUntil < 0 ? "text-[#F97373]" : daysUntil <= 7 ? "text-[#F59E0B]" : "text-[#F9FAFB]";
   const subscriptionId = subscription.id;
   const review = evaluateSubscriptionReview(
     subscription,
     subscriptionsQuery.data?.data ?? [],
   );
+
+  function applyCatalogSuggestion(suggestion: CatalogSuggestion) {
+    setFormData((current) => ({
+      ...current,
+      name: `${suggestion.service} (${suggestion.plan})`,
+      price: Number.parseFloat(String(suggestion.price)) || current.price,
+      billingPeriod: suggestion.billingPeriod as BillingPeriod,
+      serviceGroup: suggestion.group || current.serviceGroup,
+      needScore: suggestion.defaultNeedScore ?? current.needScore,
+      websiteUrl: suggestion.website || current.websiteUrl,
+    }));
+  }
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -147,7 +151,7 @@ export default function SubscriptionDetailPage({
         data: formData,
       });
       setIsEditing(false);
-      showToast("Changes saved.");
+      showToast(t("Changes saved.", { FR: "Modifications enregistrees.", RU: "Изменения сохранены.", ES: "Cambios guardados.", PT: "Alteracoes salvas." }));
       window.setTimeout(() => {
         router.back();
       }, 2000);
@@ -182,22 +186,23 @@ export default function SubscriptionDetailPage({
               className="inline-flex items-center gap-2 text-sm text-[#9CA3AF] transition hover:text-[#F9FAFB]"
             >
               <ArrowLeft className="h-4 w-4" />
-              Back to subscriptions
+              {t("Back to subscriptions", { FR: "Retour aux abonnements", RU: "Назад к подпискам", ES: "Volver a suscripciones", PT: "Voltar para assinaturas" })}
             </Link>
 
             <section className="rounded-[32px] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(74,222,128,0.16),transparent_26%),linear-gradient(135deg,rgba(10,17,32,0.98),rgba(5,8,22,0.94))] p-7 md:p-8">
               <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
                 <div className="flex items-start gap-4">
-                  <div className="flex h-16 w-16 items-center justify-center rounded-3xl border border-white/10 bg-white/5 text-sm font-semibold tracking-[0.22em] text-[#D8E2EA]">
-                    {icon}
-                  </div>
+                  <ServiceBadge
+                    name={subscription.name}
+                    className="h-16 w-16 rounded-3xl text-sm tracking-[0.22em]"
+                  />
                   <div className="space-y-3">
                     <div className="flex flex-wrap items-center gap-3">
                       <h1 className="text-4xl font-semibold tracking-tight text-[#F9FAFB]">
                         {subscription.name}
                       </h1>
                       <Tag variant={subscription.isActive ? "success" : "error"} size="md">
-                        {subscription.isActive ? "Active" : "Inactive"}
+                        {subscription.isActive ? t("Active", { FR: "Actif", RU: "Активна", ES: "Activa", PT: "Ativa" }) : t("Inactive", { FR: "Inactif", RU: "Неактивна", ES: "Inactiva", PT: "Inativa" })}
                       </Tag>
                       <Tag
                         variant={
@@ -213,8 +218,7 @@ export default function SubscriptionDetailPage({
                       </Tag>
                     </div>
                     <p className="max-w-2xl text-base leading-relaxed text-[#94A3B8]">
-                      Review billing timing, adjust details, and spot whether this subscription
-                      still earns its place in your monthly budget.
+                      {t("Review billing timing, adjust details, and spot whether this subscription still earns its place in your monthly budget.", { FR: "Revoyez l'echeance et voyez si cet abonnement merite encore sa place.", RU: "Проверьте дату списания и оцените, заслуживает ли подписка места в бюджете.", ES: "Revisa la fecha de cobro y si esta suscripcion sigue mereciendo su lugar.", PT: "Revise a cobranca e se esta assinatura ainda merece seu lugar no orcamento." })}
                     </p>
                   </div>
                 </div>
@@ -231,7 +235,7 @@ export default function SubscriptionDetailPage({
                         className="border-[#38BDF8]/30 text-[#7DD3FC] hover:bg-[#38BDF8]/10"
                       >
                         <Pencil className="mr-2 h-4 w-4" />
-                        Edit
+                        {t("Edit", { FR: "Modifier", RU: "Изменить", ES: "Editar", PT: "Editar" })}
                       </Button>
                       <Button
                         variant="ghost"
@@ -239,12 +243,12 @@ export default function SubscriptionDetailPage({
                         className="text-[#FCA5A5] hover:bg-[#F87171]/10 hover:text-[#FCA5A5]"
                       >
                         <Trash2 className="mr-2 h-4 w-4" />
-                        Delete
+                        {t("Delete", { FR: "Supprimer", RU: "Удалить", ES: "Eliminar", PT: "Excluir" })}
                       </Button>
                     </>
                   ) : (
                     <Button variant="ghost" onClick={() => setIsEditing(false)}>
-                      Cancel
+                      {t("Cancel", { FR: "Annuler", RU: "Отмена", ES: "Cancelar", PT: "Cancelar" })}
                     </Button>
                   )}
                 </div>
@@ -306,7 +310,7 @@ export default function SubscriptionDetailPage({
             <div className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr]">
               <Card className="glass-hover">
                 <CardHeader>
-                  <CardTitle>{isEditing ? "Edit details" : "Subscription details"}</CardTitle>
+                  <CardTitle>{isEditing ? t("Edit details", { FR: "Modifier les details", RU: "Изменить детали", ES: "Editar detalles", PT: "Editar detalhes" }) : t("Subscription details", { FR: "Details de l'abonnement", RU: "Детали подписки", ES: "Detalles de la suscripcion", PT: "Detalhes da assinatura" })}</CardTitle>
                   <CardDescription>
                     {isEditing
                       ? "Update billing data, activity state, and context."
@@ -319,6 +323,7 @@ export default function SubscriptionDetailPage({
                       <SubscriptionNamePicker
                         value={formData.name ?? ""}
                         onChange={(name) => setFormData({ ...formData, name })}
+                        onSelectSuggestion={applyCatalogSuggestion}
                         required
                       />
                       <div className="grid gap-4 md:grid-cols-2">
@@ -368,7 +373,7 @@ export default function SubscriptionDetailPage({
                       />
                       <div className="space-y-2">
                         <label className="text-sm font-medium text-[#F9FAFB]/80">
-                          Service group
+                            {t("Service group", { FR: "Groupe de service", RU: "Группа сервиса", ES: "Grupo de servicio", PT: "Grupo do servico" })}
                         </label>
                         <select
                           value={formData.serviceGroup ?? ""}
@@ -377,7 +382,7 @@ export default function SubscriptionDetailPage({
                           }
                           className="app-select w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-[#F9FAFB] outline-none transition hover:bg-white/10 focus:border-[#4ADE80]/35"
                         >
-                          <option value="">No group yet</option>
+                            <option value="">{t("No group yet", { FR: "Pas encore de groupe", RU: "Пока без группы", ES: "Aun sin grupo", PT: "Ainda sem grupo" })}</option>
                           {SERVICE_GROUP_OPTIONS.map((group) => (
                             <option key={group} value={group}>
                               {group}
@@ -454,9 +459,9 @@ export default function SubscriptionDetailPage({
                           </p>
                         </div>
                         <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                          <p className="text-sm text-[#9CA3AF]">Service group</p>
+                          <p className="text-sm text-[#9CA3AF]">{t("Service group", { FR: "Groupe de service", RU: "Группа сервиса", ES: "Grupo de servicio", PT: "Grupo do servico" })}</p>
                           <p className="mt-2 text-xl font-semibold text-[#F9FAFB]">
-                            {subscription.serviceGroup || "Not grouped yet"}
+                            {subscription.serviceGroup ? getLocalizedCategoryName(subscription.serviceGroup, language) : t("Not grouped yet", { FR: "Pas encore groupe", RU: "Пока без группы", ES: "Aun sin grupo", PT: "Ainda sem grupo" })}
                           </p>
                         </div>
                       </div>

@@ -9,6 +9,7 @@ import { AnalyticsModule } from "./analytics/analytics.module";
 import { ExportModule } from "./export/export.module";
 import { PrismaModule } from "./prisma/prisma.module";
 import { NotificationsModule } from "./notifications/notifications.module";
+import { CatalogModule } from "./catalog/catalog.module";
 import { LoggerMiddleware } from "./common/middleware/logger.middleware";
 
 @Module({
@@ -28,6 +29,7 @@ import { LoggerMiddleware } from "./common/middleware/logger.middleware";
     AnalyticsModule,
     ExportModule,
     NotificationsModule,
+    CatalogModule,
   ],
   providers: [
     {

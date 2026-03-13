@@ -12,10 +12,12 @@ import { AppShell } from "@/components/layout/AppShell";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Chart } from "@/components/ui/Chart";
 import { DonutChart } from "@/components/ui/DonutChart";
-import { EmptyState, Tag } from "@/components/ui";
+import { EmptyState, Tag, useAppUi } from "@/components/ui";
 import { SkeletonCard } from "@/components/ui/Skeleton";
 import { useMonthlyAnalytics, useSpendingHistory } from "@/hooks/use-analytics";
 import { useMe } from "@/hooks/use-auth";
+import { translate } from "@/lib/i18n";
+import { getLocalizedCategoryName } from "@/lib/subscriptions/categories";
 import { formatCurrency } from "@/lib/utils/format";
 import type { Currency } from "@/shared/types";
 
@@ -41,6 +43,9 @@ function StatCardSkeleton() {
 }
 
 export default function AnalyticsPage() {
+  const { language } = useAppUi();
+  const t = (fallback: string, values?: Record<string, string>) =>
+    translate(language, (values ?? {}) as Record<typeof language, string>, fallback);
   const monthlyQuery = useMonthlyAnalytics();
   const historyQuery = useSpendingHistory();
   const meQuery = useMe();
@@ -59,11 +64,11 @@ export default function AnalyticsPage() {
   const categoryChartData = useMemo(
     () =>
       categoryBreakdown.map((item, index) => ({
-        name: item.category,
+        name: getLocalizedCategoryName(item.category, language),
         value: item.total,
         color: COLORS[index % COLORS.length],
       })),
-    [categoryBreakdown],
+    [categoryBreakdown, language],
   );
 
   const historyChartData = useMemo(
@@ -116,15 +121,14 @@ export default function AnalyticsPage() {
               <div className="grid gap-8 lg:grid-cols-[1.35fr_0.95fr]">
                 <div className="space-y-4">
                   <Tag variant="success" size="md">
-                    Spending intelligence
+                    {t("Spending intelligence", { FR: "Intelligence depenses", RU: "Аналитика расходов", ES: "Inteligencia de gasto", PT: "Inteligencia de gastos" })}
                   </Tag>
                   <div className="space-y-3">
                     <h1 className="text-4xl font-semibold tracking-tight text-[#F9FAFB] md:text-5xl">
-                      Understand what is driving your recurring spend.
+                      {t("Understand what is driving your recurring spend.", { FR: "Comprenez ce qui fait monter vos depenses recurrentes.", RU: "Поймите, что формирует ваши регулярные расходы.", ES: "Entiende que impulsa tus gastos recurrentes.", PT: "Entenda o que impulsiona seus gastos recorrentes." })}
                     </h1>
                     <p className="max-w-2xl text-base leading-relaxed text-[#A5B4C3] md:text-lg">
-                      Analytics should help you judge cost concentration, billing weight,
-                      and whether recurring spend is drifting upward.
+                      {t("Analytics should help you judge cost concentration, billing weight, and whether recurring spend is drifting upward.", { FR: "L'analyse doit aider a juger la concentration des couts et la derive des paiements recurrents.", RU: "Аналитика должна показывать концентрацию трат и рост регулярных платежей.", ES: "La analitica debe mostrar concentracion de costos y tendencia de gasto.", PT: "A analise deve mostrar concentracao de custos e tendencia de gasto." })}
                     </p>
                   </div>
                 </div>
@@ -168,7 +172,7 @@ export default function AnalyticsPage() {
 
             {analytics?.activeSubscriptions ? (
               <div className="grid gap-4 md:grid-cols-3">
-                <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.88),rgba(6,11,22,0.94))] p-6">
+                <div className="analytics-surface rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.88),rgba(6,11,22,0.94))] p-6">
                   <div className="mb-4 flex items-center gap-3">
                     <div className="rounded-2xl border border-white/10 bg-white/5 p-2.5 text-[#4ADE80]">
                       <CircleDollarSign className="h-5 w-5" />
@@ -179,7 +183,7 @@ export default function AnalyticsPage() {
                     </div>
                   </div>
                   <p className="text-2xl font-semibold text-[#F9FAFB]">
-                    {largestCategory?.category ?? "No category data"}
+                    {largestCategory ? getLocalizedCategoryName(largestCategory.category, language) : t("No category data", { FR: "Pas de donnees", RU: "Нет данных", ES: "Sin datos", PT: "Sem dados" })}
                   </p>
                   <p className="mt-2 text-sm text-[#94A3B8]">
                     {largestCategory
@@ -188,7 +192,7 @@ export default function AnalyticsPage() {
                   </p>
                 </div>
 
-                <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.88),rgba(6,11,22,0.94))] p-6">
+                <div className="analytics-surface rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.88),rgba(6,11,22,0.94))] p-6">
                   <div className="mb-4 flex items-center gap-3">
                     <div className="rounded-2xl border border-white/10 bg-white/5 p-2.5 text-[#7DD3FC]">
                       <ChartNoAxesCombined className="h-5 w-5" />
@@ -208,7 +212,7 @@ export default function AnalyticsPage() {
                   </p>
                 </div>
 
-                <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.88),rgba(6,11,22,0.94))] p-6">
+                <div className="analytics-surface rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.88),rgba(6,11,22,0.94))] p-6">
                   <div className="mb-4 flex items-center gap-3">
                     <div className="rounded-2xl border border-white/10 bg-white/5 p-2.5 text-[#F59E0B]">
                       <Layers3 className="h-5 w-5" />
@@ -228,17 +232,17 @@ export default function AnalyticsPage() {
               </div>
             ) : null}
 
-            <div className="grid gap-8 lg:grid-cols-2">
-              <Card className="glass-hover">
+            <div className="grid items-start gap-8 lg:grid-cols-2">
+              <Card hover={false} className="analytics-card overflow-hidden">
                 <CardHeader>
-                  <CardTitle>Spending history</CardTitle>
-                  <CardDescription>Monthly trend across the last recorded periods.</CardDescription>
+                  <CardTitle>{t("Spending history", { FR: "Historique des depenses", RU: "История расходов", UK: "Історія витрат", GE: "Ausgabenverlauf", ES: "Historial de gasto", PT: "Historico de gastos", IT: "Storico spese", PL: "Historia wydatkow", TR: "Harcama gecmisi", UZ: "Xarajatlar tarixi" })}</CardTitle>
+                  <CardDescription>{t("Monthly trend across the last recorded periods.", { FR: "Tendance mensuelle sur les dernieres periodes.", RU: "Месячный тренд за последние периоды.", UK: "Місячний тренд за останні періоди.", GE: "Monatlicher Trend uber die letzten Perioden.", ES: "Tendencia mensual en los ultimos periodos.", PT: "Tendencia mensal nos ultimos periodos.", IT: "Trend mensile degli ultimi periodi.", PL: "Miesieczny trend z ostatnich okresow.", TR: "Son donemlerdeki aylik egilim.", UZ: "Songgi davrlar boyicha oylik trend." })}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {historyChartData.length === 0 ? (
                     <EmptyState
-                      title="Not enough history yet"
-                      description="As you keep subscriptions active over time, ControlMe will show whether recurring spend is drifting upward or staying stable."
+                      title={t("Not enough history yet", { FR: "Pas assez d'historique", RU: "Пока мало истории", UK: "Поки мало історії", GE: "Noch nicht genug Verlauf", ES: "Aun no hay suficiente historial", PT: "Ainda nao ha historico suficiente", IT: "Storico ancora insufficiente", PL: "Za malo historii", TR: "Henuz yeterli gecmis yok", UZ: "Hali tarix yetarli emas" })}
+                      description={t("As you keep subscriptions active over time, ControlMe will show whether recurring spend is drifting upward or staying stable.", { FR: "Avec le temps, ControlMe montrera si vos depenses montent ou restent stables.", RU: "Со временем ControlMe покажет, растут ли регулярные расходы или остаются стабильными.", UK: "З часом ControlMe покаже, чи зростають регулярні витрати, чи залишаються стабільними.", GE: "Mit der Zeit zeigt ControlMe, ob die wiederkehrenden Ausgaben steigen oder stabil bleiben.", ES: "Con el tiempo, ControlMe mostrara si el gasto recurrente sube o se mantiene estable.", PT: "Com o tempo, o ControlMe mostrara se o gasto recorrente sobe ou fica estavel.", IT: "Con il tempo ControlMe mostrera se la spesa ricorrente cresce o resta stabile.", PL: "Z czasem ControlMe pokaze, czy wydatki cykliczne rosna, czy pozostaja stabilne.", TR: "Zamanla ControlMe, yinelenen harcamanin artip artmadigini gosterecek.", UZ: "Vaqt o'tishi bilan ControlMe muntazam xarajatlar oshayotganini yoki barqarorligini ko'rsatadi." })}
                     />
                   ) : (
                     <Chart data={historyChartData} dataKey="value" type="area" color="#4ADE80" />
@@ -246,10 +250,10 @@ export default function AnalyticsPage() {
                 </CardContent>
               </Card>
 
-              <Card className="glass-hover">
+              <Card hover={false} className="analytics-card overflow-hidden">
                 <CardHeader>
-                  <CardTitle>Category mix</CardTitle>
-                  <CardDescription>How your monthly spend is distributed by category.</CardDescription>
+                  <CardTitle>{t("Category mix", { FR: "Repartition par categorie", RU: "Структура категорий", UK: "Структура категорій", GE: "Kategorienmix", ES: "Mezcla por categoria", PT: "Distribuicao por categoria", IT: "Mix categorie", PL: "Struktura kategorii", TR: "Kategori dagilimi", UZ: "Kategoriyalar tarkibi" })}</CardTitle>
+                  <CardDescription>{t("How your monthly spend is distributed by category.", { FR: "Comment vos depenses mensuelles se repartissent par categorie.", RU: "Как распределяются месячные расходы по категориям.", UK: "Як розподіляються місячні витрати за категоріями.", GE: "Wie sich Ihre monatlichen Ausgaben auf Kategorien verteilen.", ES: "Como se distribuye tu gasto mensual por categoria.", PT: "Como seu gasto mensal se distribui por categoria.", IT: "Come si distribuisce la spesa mensile per categoria.", PL: "Jak miesieczne wydatki rozkladaja sie na kategorie.", TR: "Aylik harcamanizin kategorilere gore dagilimi.", UZ: "Oylik xarajatlarning kategoriyalar boyicha taqsimoti." })}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {categoryChartData.length === 0 ? (
@@ -258,14 +262,17 @@ export default function AnalyticsPage() {
                       description="Add subscriptions first to see which groups dominate your recurring costs."
                     />
                   ) : (
-                    <DonutChart data={categoryChartData} />
+                    <DonutChart
+                      data={categoryChartData}
+                      valueFormatter={(value) => formatCurrency(value, currency)}
+                    />
                   )}
                 </CardContent>
               </Card>
             </div>
 
             {categoryBreakdown.length > 0 ? (
-              <section className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.88),rgba(6,11,22,0.94))] p-6">
+                <section className="analytics-surface rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.88),rgba(6,11,22,0.94))] p-6">
                 <div className="mb-5 flex items-center justify-between gap-4">
                   <div>
                     <h2 className="text-xl font-semibold text-[#F9FAFB]">Category details</h2>
@@ -290,7 +297,9 @@ export default function AnalyticsPage() {
                           style={{ backgroundColor: COLORS[index % COLORS.length] }}
                         />
                         <div>
-                          <p className="font-medium text-[#F9FAFB]">{item.category}</p>
+                          <p className="font-medium text-[#F9FAFB]">
+                            {getLocalizedCategoryName(item.category, language)}
+                          </p>
                           <p className="text-sm text-[#94A3B8]">
                             {item.count} subscription{item.count === 1 ? "" : "s"}
                           </p>

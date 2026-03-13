@@ -72,6 +72,42 @@ body {
   border-color: rgba(255, 255, 255, 0.18);
 }
 
+.analytics-card {
+  isolation: isolate;
+  box-shadow: none !important;
+  transform: none !important;
+  transition: none !important;
+  filter: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.analytics-card:hover {
+  transform: none !important;
+  border-color: var(--glass-border) !important;
+  box-shadow: none !important;
+  filter: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.analytics-surface {
+  box-shadow: none !important;
+  transform: none !important;
+  transition: none !important;
+  filter: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.analytics-surface:hover {
+  box-shadow: none !important;
+  transform: none !important;
+  filter: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
 /* Glow effects */
 .glow-green {
   box-shadow: 0 0 20px rgba(74, 222, 128, 0.35), 0 0 40px rgba(74, 222, 128, 0.1);

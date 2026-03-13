@@ -19,6 +19,7 @@ import { useSmartAlerts } from "@/hooks/use-notifications";
 import { useMe } from "@/hooks/use-auth";
 import { useApiError } from "@/hooks/use-api-error";
 import { translate } from "@/lib/i18n";
+import { getLocalizedCategoryName } from "@/lib/subscriptions/categories";
 import { cn } from "@/lib/utils";
 import {
   formatCurrency,
@@ -96,6 +97,7 @@ export default function DashboardPage() {
   const categoryData =
     analytics?.categoryBreakdown.map((item, index) => ({
       name: item.category,
+      displayName: getLocalizedCategoryName(item.category, language),
       value: item.total,
       color: CHART_COLORS[index % CHART_COLORS.length],
     })) ?? [];
@@ -108,6 +110,10 @@ export default function DashboardPage() {
     budgetLimit && analytics
       ? Math.min((analytics.totalMonthlyCost / budgetLimit) * 100, 100)
       : null;
+  const budgetOverrun =
+    budgetLimit && analytics && analytics.totalMonthlyCost > budgetLimit
+      ? analytics.totalMonthlyCost - budgetLimit
+      : 0;
 
   if (isLoading) {
     return (
@@ -301,6 +307,47 @@ export default function DashboardPage() {
                         style={{ width: `${budgetPercent ?? 0}%` }}
                       />
                     </div>
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm">
+                      <span
+                        className={cn(
+                          "font-medium",
+                          budgetOverrun > 0
+                            ? "text-[#F87171]"
+                            : "text-[#4ADE80]",
+                        )}
+                      >
+                        {budgetOverrun > 0
+                          ? t("Over budget by", {
+                              FR: "Depassement de",
+                              RU: "Превышение на",
+                              UK: "Перевищення на",
+                              GE: "Uber Budget um",
+                              ES: "Por encima por",
+                              PT: "Acima em",
+                              IT: "Oltre il budget di",
+                              PL: "Przekroczenie o",
+                              TR: "Butce asimi",
+                              UZ: "Budjetdan oshish",
+                            })
+                          : t("Within budget", {
+                              FR: "Dans le budget",
+                              RU: "В пределах бюджета",
+                              UK: "У межах бюджету",
+                              GE: "Im Budget",
+                              ES: "Dentro del presupuesto",
+                              PT: "Dentro do orcamento",
+                              IT: "Dentro il budget",
+                              PL: "W budzecie",
+                              TR: "Butce icinde",
+                              UZ: "Budjet ichida",
+                            })}
+                      </span>
+                      <span className="font-semibold text-[#F9FAFB]">
+                        {budgetOverrun > 0
+                          ? formatCurrency(budgetOverrun, currency)
+                          : `${Math.round(budgetPercent ?? 0)}%`}
+                      </span>
+                    </div>
                   </div>
                 ) : null}
               </div>
@@ -390,7 +437,7 @@ export default function DashboardPage() {
                 },
                 {
                   label: t("Category leader", { FR: "Categorie principale", RU: "Главная категория", ES: "Categoria principal", PT: "Categoria principal" }),
-                  value: topCategory?.category ?? "-",
+                  value: topCategory ? getLocalizedCategoryName(topCategory.category, language) : "-",
                   tone: "text-[#38BDF8]",
                   detail: topCategory
                     ? `${formatCurrency(topCategory.total, currency)} / ${t("month", { FR: "mois", RU: "месяц", ES: "mes", PT: "mes" })}`
@@ -425,7 +472,7 @@ export default function DashboardPage() {
                       })}
                     </p>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center justify-end gap-2">
                     <div className="flex rounded-2xl border border-white/10 bg-white/5 p-1">
                       <button
                         type="button"
@@ -454,7 +501,7 @@ export default function DashboardPage() {
                     </div>
                     <Link
                       href="/subscriptions"
-                      className="text-sm text-[#38BDF8] transition-colors hover:text-[#7DD3FC]"
+                      className="whitespace-nowrap text-sm text-[#38BDF8] transition-colors hover:text-[#7DD3FC]"
                     >
                       {t("Manage list", { FR: "Voir la liste", RU: "К списку", ES: "Gestionar lista", PT: "Gerenciar lista" })}
                     </Link>
@@ -474,18 +521,18 @@ export default function DashboardPage() {
                         <Link
                           key={subscription.id}
                           href={`/subscriptions/${subscription.id}`}
-                          className="glass-light flex items-center justify-between gap-4 rounded-2xl p-4 transition-colors hover:bg-white/8"
+                          className="glass-light grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 rounded-2xl p-4 md:p-5 transition-colors hover:bg-white/8"
                         >
-                          <div className="min-w-0">
-                            <p className="truncate font-medium text-[#F9FAFB]">
+                          <div className="min-w-0 space-y-1">
+                            <p className="break-words text-sm font-medium leading-5 text-[#F9FAFB] md:text-[0.95rem]">
                               {subscription.name}
                             </p>
                             <p className="text-sm text-[#9CA3AF]">
                               {formatDateShort(subscription.nextChargeDate)}
                             </p>
                           </div>
-                          <div className="shrink-0 text-right">
-                            <p className="text-sm font-semibold text-[#F9FAFB]">
+                          <div className="flex min-w-[108px] flex-col items-end gap-2 text-right">
+                            <p className="text-sm font-semibold text-[#F9FAFB] md:text-[0.95rem]">
                               {formatCurrency(subscription.price, currency)}
                             </p>
                             <Tag
@@ -511,20 +558,20 @@ export default function DashboardPage() {
                         <Link
                           key={subscription.id}
                           href={`/subscriptions/${subscription.id}`}
-                          className="group flex items-center gap-4 rounded-2xl p-3 transition-all duration-[120ms] hover:bg-white/5"
+                          className="group grid grid-cols-[20px_minmax(0,1fr)_auto] items-start gap-4 rounded-2xl p-4 md:p-5 transition-all duration-[120ms] hover:bg-white/5"
                         >
-                          <div className="flex w-5 flex-shrink-0 flex-col items-center">
+                          <div className="flex w-5 flex-shrink-0 flex-col items-center self-stretch">
                             <div
                               className="h-2.5 w-2.5 flex-shrink-0 rounded-full"
                               style={{ background: dotColor, boxShadow: `0 0 8px ${dotColor}60` }}
                             />
                             {!isLast ? (
-                              <div className="mt-1 w-px flex-1 bg-white/10" style={{ minHeight: "20px" }} />
+                              <div className="mt-1 w-px flex-1 bg-white/10" style={{ minHeight: "28px" }} />
                             ) : null}
                           </div>
 
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-medium text-[#F9FAFB] transition-colors group-hover:text-white">
+                          <div className="min-w-0">
+                            <p className="break-words text-sm font-medium leading-5 text-[#F9FAFB] transition-colors group-hover:text-white md:text-[0.95rem]">
                               {subscription.name}
                             </p>
                             <p className="text-xs text-[#9CA3AF]">
@@ -532,7 +579,7 @@ export default function DashboardPage() {
                             </p>
                           </div>
 
-                          <div className="flex flex-shrink-0 items-center gap-2">
+                          <div className="flex min-w-[112px] flex-col items-end gap-2">
                             {daysUntil <= 7 ? (
                               <Tag variant={daysUntil <= 2 ? "error" : "warning"} size="sm">
                                 {daysUntil === 0 ? "Today" : daysUntil === 1 ? "Tomorrow" : `${daysUntil}d`}
@@ -558,7 +605,7 @@ export default function DashboardPage() {
                     {t("Where your monthly recurring budget is concentrated", { FR: "Ou se concentre votre budget recurrent", RU: "Где сосредоточен ежемесячный бюджет", ES: "Donde se concentra tu presupuesto mensual", PT: "Onde seu orcamento mensal esta concentrado" })}
                   </p>
                   {categoryData.length > 0 ? (
-                    <DonutChart data={categoryData} />
+                    <DonutChart data={categoryData.map((item) => ({ ...item, name: item.displayName }))} />
                   ) : (
                     <StatusBanner tone="neutral" title={t("No category data yet", { FR: "Pas encore de donnees", RU: "Пока нет данных", ES: "Aun no hay datos", PT: "Ainda nao ha dados" })}>
                       {t("Add subscriptions with categories to understand where spending clusters.", { FR: "Ajoutez des abonnements avec categorie pour voir la repartition.", RU: "Добавьте подписки с категориями, чтобы видеть структуру расходов.", ES: "Agrega suscripciones con categoria para ver la distribucion.", PT: "Adicione assinaturas com categoria para ver a distribuicao." })}

@@ -1,6 +1,27 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 
+function normalizeCategory(
+  category?: string | null,
+  serviceGroup?: string | null,
+) {
+  const trimmedCategory = category?.trim();
+  const trimmedGroup = serviceGroup?.trim();
+
+  if (
+    trimmedCategory &&
+    !["General", "Subscription"].includes(trimmedCategory)
+  ) {
+    return trimmedCategory;
+  }
+
+  if (trimmedGroup) {
+    return trimmedGroup;
+  }
+
+  return trimmedCategory || trimmedGroup || "Subscription";
+}
+
 @Injectable()
 export class AnalyticsService {
   constructor(private prisma: PrismaService) {}
@@ -35,20 +56,21 @@ export class AnalyticsService {
       totalMonthlyCost += monthlyPrice;
       totalYearlyCost += yearlyPrice;
 
-      const existing = categoryMap.get(sub.category) || { total: 0, count: 0 };
-      categoryMap.set(sub.category, {
+      const category = normalizeCategory(sub.category, sub.serviceGroup);
+      const existing = categoryMap.get(category) || { total: 0, count: 0 };
+      categoryMap.set(category, {
         total: existing.total + monthlyPrice,
         count: existing.count + 1,
       });
     });
 
-    const categoryBreakdown = Array.from(categoryMap.entries()).map(
-      ([category, data]) => ({
+    const categoryBreakdown = Array.from(categoryMap.entries())
+      .map(([category, data]) => ({
         category,
         total: data.total,
         count: data.count,
-      }),
-    );
+      }))
+      .sort((a, b) => b.total - a.total);
 
     return {
       totalMonthlyCost: Math.round(totalMonthlyCost * 100) / 100,

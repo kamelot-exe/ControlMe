@@ -1,12 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { Pencil } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
 import { Tag } from "@/components/ui/Tag";
+import { useAppUi } from "@/components/ui/AppUiProvider";
 import type { Currency, Subscription } from "@/shared/types";
 import { evaluateSubscriptionReview } from "@/lib/subscriptions/review";
+import { translate } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
+import { ServiceBadge } from "./ServiceBadge";
 import {
   formatBillingPeriod,
   formatCurrency,
@@ -19,72 +22,41 @@ interface SubscriptionCardProps {
   allSubscriptions: Subscription[];
   currency?: Currency;
   onEdit?: (subscription: Subscription) => void;
+  onDelete?: (subscription: Subscription) => void;
 }
-
-const categoryTokens: Record<string, string> = {
-  Streaming: "TV",
-  Software: "APP",
-  Gym: "FIT",
-  Music: "SND",
-  Cloud: "CLD",
-  News: "NWS",
-  Education: "EDU",
-  Gaming: "GME",
-  Finance: "FIN",
-  Other: "SUB",
-  General: "SUB",
-  Subscription: "SUB",
-};
 
 export function SubscriptionCard({
   subscription,
   allSubscriptions,
   currency = "USD",
   onEdit,
+  onDelete,
 }: SubscriptionCardProps) {
+  const { language } = useAppUi();
+  const t = (fallback: string, values?: Record<string, string>) =>
+    translate(language, values ?? {}, fallback);
   const daysUntil = getDaysUntil(subscription.nextChargeDate);
   const isUpcoming = daysUntil <= 7 && daysUntil >= 0;
   const isOverdue = daysUntil < 0;
   const isToday = daysUntil === 0;
   const isTomorrow = daysUntil === 1;
-  const categoryToken = categoryTokens[subscription.category] ?? categoryTokens.Other;
   const review = evaluateSubscriptionReview(subscription, allSubscriptions);
 
   const statusTag = (() => {
     if (!subscription.isActive) {
-      return (
-        <Tag variant="error" size="sm">
-          Inactive
-        </Tag>
-      );
+      return <Tag variant="error" size="sm">{t("Inactive", { FR: "Inactif", RU: "Неактивна", UK: "Неактивна", GE: "Inaktiv", ES: "Inactiva", PT: "Inativa", IT: "Inattiva", PL: "Nieaktywna", TR: "Pasif", UZ: "Faol emas" })}</Tag>;
     }
     if (isOverdue) {
-      return (
-        <Tag variant="error" size="sm">
-          Overdue
-        </Tag>
-      );
+      return <Tag variant="error" size="sm">{t("Overdue", { FR: "En retard", RU: "Просрочена", UK: "Прострочена", GE: "Überfällig", ES: "Atrasada", PT: "Atrasada", IT: "Scaduta", PL: "Zaległa", TR: "Gecikti", UZ: "Muddati o'tgan" })}</Tag>;
     }
     if (isToday) {
-      return (
-        <Tag variant="warning" size="sm">
-          Today
-        </Tag>
-      );
+      return <Tag variant="warning" size="sm">{t("Today", { FR: "Aujourd'hui", RU: "Сегодня", UK: "Сьогодні", GE: "Heute", ES: "Hoy", PT: "Hoje", IT: "Oggi", PL: "Dzisiaj", TR: "Bugün", UZ: "Bugun" })}</Tag>;
     }
     if (isTomorrow) {
-      return (
-        <Tag variant="warning" size="sm">
-          Tomorrow
-        </Tag>
-      );
+      return <Tag variant="warning" size="sm">{t("Tomorrow", { FR: "Demain", RU: "Завтра", UK: "Завтра", GE: "Morgen", ES: "Mañana", PT: "Amanhã", IT: "Domani", PL: "Jutro", TR: "Yarın", UZ: "Ertaga" })}</Tag>;
     }
     if (isUpcoming) {
-      return (
-        <Tag variant="warning" size="sm">
-          {daysUntil}d
-        </Tag>
-      );
+      return <Tag variant="warning" size="sm">{daysUntil}d</Tag>;
     }
     return null;
   })();
@@ -118,9 +90,10 @@ export function SubscriptionCard({
         <CardHeader className="px-6 pb-5 pt-6">
           <div className="flex items-start justify-between gap-3">
             <div className="flex min-w-0 flex-1 items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-[10px] font-semibold tracking-[0.18em] text-[#D8E2EA] transition group-hover:scale-105">
-                {categoryToken}
-              </div>
+              <ServiceBadge
+                name={subscription.name}
+                className="h-10 w-10 shrink-0 transition group-hover:scale-105"
+              />
               <div className="min-w-0 flex-1">
                 <h3 className="truncate text-[1.05rem] font-semibold text-[#F9FAFB] transition group-hover:text-white">
                   {subscription.name}
@@ -151,18 +124,35 @@ export function SubscriptionCard({
               </div>
             </div>
 
-            {onEdit ? (
-              <button
-                onClick={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  onEdit(subscription);
-                }}
-                className="rounded-lg p-1.5 text-[#9CA3AF] opacity-0 transition-all duration-150 hover:bg-[#4ADE80]/10 hover:text-[#4ADE80] group-hover:opacity-100"
-                title="Quick edit"
-              >
-                <Pencil size={14} />
-              </button>
+            {onEdit || onDelete ? (
+              <div className="flex items-center gap-1 opacity-0 transition-all duration-150 group-hover:opacity-100">
+                {onEdit ? (
+                  <button
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      onEdit(subscription);
+                    }}
+                    className="rounded-lg p-1.5 text-[#9CA3AF] transition-all duration-150 hover:bg-[#4ADE80]/10 hover:text-[#4ADE80]"
+                    title={t("Quick edit", { FR: "Modification rapide", RU: "Быстрое редактирование", UK: "Швидке редагування", GE: "Schnell bearbeiten", ES: "Edición rápida", PT: "Edicao rapida", IT: "Modifica rapida", PL: "Szybka edycja", TR: "Hızlı düzenleme", UZ: "Tez tahrirlash" })}
+                  >
+                    <Pencil size={14} />
+                  </button>
+                ) : null}
+                {onDelete ? (
+                  <button
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      onDelete(subscription);
+                    }}
+                    className="rounded-lg p-1.5 text-[#9CA3AF] transition-all duration-150 hover:bg-[#F97373]/10 hover:text-[#F97373]"
+                    title={t("Delete subscription", { FR: "Supprimer l'abonnement", RU: "Удалить подписку", UK: "Видалити підписку", GE: "Abo löschen", ES: "Eliminar suscripción", PT: "Excluir assinatura", IT: "Elimina abbonamento", PL: "Usuń subskrypcję", TR: "Aboneliği sil", UZ: "Obunani o'chirish" })}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                ) : null}
+              </div>
             ) : null}
           </div>
         </CardHeader>
@@ -184,7 +174,9 @@ export function SubscriptionCard({
 
           <div className="space-y-2.5 border-t border-white/10 pt-4">
             <div className="flex items-center justify-between text-sm">
-              <span className="text-[#9CA3AF]">Next charge</span>
+              <span className="text-[#9CA3AF]">
+                {t("Next charge", { FR: "Prochain paiement", RU: "Следующее списание", UK: "Наступне списання", GE: "Nächste Abbuchung", ES: "Próximo cargo", PT: "Próxima cobrança", IT: "Prossimo addebito", PL: "Następna płatność", TR: "Sonraki ödeme", UZ: "Keyingi to'lov" })}
+              </span>
               <span
                 className={cn(
                   "font-medium",
@@ -198,12 +190,16 @@ export function SubscriptionCard({
               </span>
             </div>
             <div className="flex items-center justify-between text-sm">
-              <span className="text-[#9CA3AF]">Need score</span>
+              <span className="text-[#9CA3AF]">
+                {t("Need score", { FR: "Utilité", RU: "Полезность", UK: "Корисність", GE: "Nutzen", ES: "Utilidad", PT: "Utilidade", IT: "Utilità", PL: "Przydatność", TR: "Gereklilik", UZ: "Foydalilik" })}
+              </span>
               <span className="font-medium text-[#DCE6EE]">{subscription.needScore}%</span>
             </div>
             {subscription.serviceGroup ? (
               <div className="flex items-center justify-between text-sm">
-                <span className="text-[#9CA3AF]">Group</span>
+                <span className="text-[#9CA3AF]">
+                  {t("Group", { FR: "Groupe", RU: "Группа", UK: "Група", GE: "Gruppe", ES: "Grupo", PT: "Grupo", IT: "Gruppo", PL: "Grupa", TR: "Grup", UZ: "Guruh" })}
+                </span>
                 <span className="font-medium text-[#DCE6EE]">
                   {subscription.serviceGroup}
                 </span>
