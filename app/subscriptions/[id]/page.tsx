@@ -31,6 +31,7 @@ import {
 import { evaluateSubscriptionReview } from "@/lib/subscriptions/review";
 import { translate } from "@/lib/i18n";
 import { getLocalizedCategoryName } from "@/lib/subscriptions/categories";
+import { getSubscriptionTags, getUsageLabel } from "@/lib/subscriptions/modules";
 import { cn } from "@/lib/utils";
 import {
   formatBillingPeriod,
@@ -53,7 +54,17 @@ export default function SubscriptionDetailPage({
   const meQuery = useMe();
   const updateMutation = useUpdateSubscription();
   const deleteMutation = useDeleteSubscription();
-  const { showToast, language } = useAppUi();
+  const {
+    showToast,
+    language,
+    modules,
+    usageFlags,
+    setUsageFlag,
+    pausedSubscriptions,
+    setPausedSubscription,
+    subscriptionTags,
+    setSubscriptionTags,
+  } = useAppUi();
   const t = (fallback: string, values?: Record<string, string>) =>
     translate(language, (values ?? {}) as Record<typeof language, string>, fallback);
 
@@ -122,8 +133,12 @@ export default function SubscriptionDetailPage({
   const daysUntil = getDaysUntil(subscription.nextChargeDate);
   const monthlyEquivalent = toMonthlyEquivalent(subscription.price, subscription.billingPeriod);
   const yearlyEquivalent = toYearlyEquivalent(subscription.price, subscription.billingPeriod);
+  const costPerDay = monthlyEquivalent / 30;
   const nextChargeTone = daysUntil < 0 ? "text-[#F97373]" : daysUntil <= 7 ? "text-[#F59E0B]" : "text-[#F9FAFB]";
   const subscriptionId = subscription.id;
+  const usageLabel = getUsageLabel(modules, usageFlags, subscriptionId);
+  const paused = modules.pauseTracking && !!pausedSubscriptions[subscriptionId];
+  const tags = getSubscriptionTags(modules, subscriptionTags, subscriptionId);
   const review = evaluateSubscriptionReview(
     subscription,
     subscriptionsQuery.data?.data ?? [],
@@ -204,6 +219,12 @@ export default function SubscriptionDetailPage({
                       <Tag variant={subscription.isActive ? "success" : "error"} size="md">
                         {subscription.isActive ? t("Active", { FR: "Actif", RU: "Активна", ES: "Activa", PT: "Ativa" }) : t("Inactive", { FR: "Inactif", RU: "Неактивна", ES: "Inactiva", PT: "Inativa" })}
                       </Tag>
+                      {paused ? <Tag variant="info" size="md">Paused</Tag> : null}
+                      {modules.usageFlags && usageLabel ? (
+                        <Tag variant={usageLabel === "used" ? "success" : "warning"} size="md">
+                          {usageLabel === "used" ? "Used" : "Unused"}
+                        </Tag>
+                      ) : null}
                       <Tag
                         variant={
                           review.status === "keep"
@@ -507,6 +528,141 @@ export default function SubscriptionDetailPage({
               <div className="space-y-6">
                 <Card className="glass-hover">
                   <CardHeader>
+                    <CardTitle>Decision support</CardTitle>
+                    <CardDescription>Usefulness, overlap, and savings potential at a glance.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-5">
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                      <p className="text-sm text-[#9CA3AF]">Review status</p>
+                      <p className="mt-2 text-2xl font-semibold text-[#F9FAFB]">
+                        {review.label}
+                      </p>
+                      <p className="mt-2 text-sm leading-relaxed text-[#94A3B8]">
+                        {review.reason}
+                      </p>
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                        <p className="text-sm text-[#9CA3AF]">Overlap count</p>
+                        <p className="mt-2 text-2xl font-semibold text-[#FF7355]">
+                          {Math.max(review.relatedCount - 1, 0)}
+                        </p>
+                        <p className="mt-2 text-sm text-[#94A3B8]">
+                          Other active subscriptions in the same service group.
+                        </p>
+                      </div>
+                      <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                        <p className="text-sm text-[#9CA3AF]">Savings if removed</p>
+                        <p className="mt-2 text-2xl font-semibold text-[#4ADE80]">
+                          {formatCurrency(yearlyEquivalent, currency)}
+                        </p>
+                        <p className="mt-2 text-sm text-[#94A3B8]">
+                          Yearly budget relief if you cancel before the next cycle.
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {(modules.usageFlags || modules.pauseTracking || modules.subscriptionTags) ? (
+                  <Card className="glass-hover">
+                    <CardHeader>
+                      <CardTitle>Optional controls</CardTitle>
+                      <CardDescription>Lightweight controls enabled in module settings.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {modules.usageFlags ? (
+                        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                          <p className="text-sm text-[#9CA3AF]">Usage flag</p>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {[
+                              ["used", "Used"],
+                              ["unused", "Unused"],
+                            ].map(([value, label]) => (
+                              <button
+                                key={value}
+                                type="button"
+                                onClick={() => setUsageFlag(subscriptionId, value as "used" | "unused")}
+                                className={cn(
+                                  "rounded-xl px-4 py-2 text-sm font-medium transition",
+                                  usageLabel === value
+                                    ? "bg-[#4ADE80] text-[#05111A]"
+                                    : "border border-white/10 bg-white/5 text-[#D3DBE4] hover:bg-white/10",
+                                )}
+                              >
+                                {label}
+                              </button>
+                            ))}
+                            <button
+                              type="button"
+                              onClick={() => setUsageFlag(subscriptionId, null)}
+                              className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-[#D3DBE4] transition hover:bg-white/10"
+                            >
+                              Clear
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {modules.pauseTracking ? (
+                        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                          <p className="text-sm text-[#9CA3AF]">Tracking state</p>
+                          <button
+                            type="button"
+                            onClick={() => setPausedSubscription(subscriptionId, !paused)}
+                            className={cn(
+                              "mt-3 rounded-xl px-4 py-2 text-sm font-medium transition",
+                              paused
+                                ? "bg-[#38BDF8]/14 text-[#7DD3FC] hover:bg-[#38BDF8]/18"
+                                : "border border-white/10 bg-white/5 text-[#D3DBE4] hover:bg-white/10",
+                            )}
+                          >
+                            {paused ? "Resume tracking" : "Pause tracking"}
+                          </button>
+                        </div>
+                      ) : null}
+
+                      {modules.subscriptionTags ? (
+                        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                          <p className="text-sm text-[#9CA3AF]">Tags</p>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {tags.map((tag) => (
+                              <button
+                                key={tag}
+                                type="button"
+                                onClick={() => setSubscriptionTags(subscriptionId, tags.filter((value) => value !== tag))}
+                                className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs uppercase tracking-[0.14em] text-[#D3DBE4] transition hover:bg-white/10"
+                              >
+                                {tag} ×
+                              </button>
+                            ))}
+                            {tags.length === 0 ? (
+                              <p className="text-sm text-[#94A3B8]">No tags yet.</p>
+                            ) : null}
+                          </div>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {["work", "personal", "shared", "essential"].map((tag) => (
+                              <button
+                                key={tag}
+                                type="button"
+                                onClick={() => {
+                                  if (tags.includes(tag)) return;
+                                  setSubscriptionTags(subscriptionId, [...tags, tag]);
+                                }}
+                                className="rounded-full border border-[#FF7355]/25 bg-[#FF7355]/10 px-3 py-1.5 text-xs uppercase tracking-[0.14em] text-[#FFB09C] transition hover:bg-[#FF7355]/16"
+                              >
+                                Add {tag}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+                    </CardContent>
+                  </Card>
+                ) : null}
+
+                <Card className="glass-hover">
+                  <CardHeader>
                     <CardTitle>Service access</CardTitle>
                     <CardDescription>Useful links related to this subscription.</CardDescription>
                   </CardHeader>
@@ -548,6 +704,14 @@ export default function SubscriptionDetailPage({
                         {formatCurrency(monthlyEquivalent, currency)}
                       </p>
                     </div>
+                    {modules.costPerDay ? (
+                      <div className="border-t border-white/10 pt-5">
+                        <p className="text-sm text-[#9CA3AF]">Cost per day</p>
+                        <p className="mt-2 text-2xl font-semibold text-[#F9FAFB]">
+                          {formatCurrency(costPerDay, currency)}
+                        </p>
+                      </div>
+                    ) : null}
                     <div className="border-t border-white/10 pt-5">
                       <p className="text-sm text-[#9CA3AF]">Yearly equivalent</p>
                       <p className="mt-2 text-2xl font-semibold text-[#F9FAFB]">

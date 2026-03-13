@@ -16,8 +16,10 @@ import { EmptyState, Tag, useAppUi } from "@/components/ui";
 import { SkeletonCard } from "@/components/ui/Skeleton";
 import { useMonthlyAnalytics, useSpendingHistory } from "@/hooks/use-analytics";
 import { useMe } from "@/hooks/use-auth";
+import { useSubscriptions } from "@/hooks/use-subscriptions";
 import { translate } from "@/lib/i18n";
 import { getLocalizedCategoryName } from "@/lib/subscriptions/categories";
+import { buildSubscriptionIntelligence } from "@/lib/subscriptions/intelligence";
 import { formatCurrency } from "@/lib/utils/format";
 import type { Currency } from "@/shared/types";
 
@@ -48,6 +50,7 @@ export default function AnalyticsPage() {
     translate(language, (values ?? {}) as Record<typeof language, string>, fallback);
   const monthlyQuery = useMonthlyAnalytics();
   const historyQuery = useSpendingHistory();
+  const subscriptionsQuery = useSubscriptions();
   const meQuery = useMe();
 
   const analytics = monthlyQuery.data?.data;
@@ -56,6 +59,14 @@ export default function AnalyticsPage() {
     [historyQuery.data],
   );
   const currency = (meQuery.data?.data?.currency ?? "USD") as Currency;
+  const subscriptions = useMemo(
+    () => subscriptionsQuery.data?.data ?? [],
+    [subscriptionsQuery.data],
+  );
+  const intelligence = useMemo(
+    () => buildSubscriptionIntelligence(subscriptions),
+    [subscriptions],
+  );
   const categoryBreakdown = useMemo(
     () => analytics?.categoryBreakdown ?? [],
     [analytics],
@@ -87,7 +98,8 @@ export default function AnalyticsPage() {
       : 0;
   const categoryCount = categoryBreakdown.length;
 
-  const isLoading = monthlyQuery.isLoading || historyQuery.isLoading;
+  const isLoading =
+    monthlyQuery.isLoading || historyQuery.isLoading || subscriptionsQuery.isLoading;
 
   if (isLoading) {
     return (
@@ -231,6 +243,47 @@ export default function AnalyticsPage() {
                 </div>
               </div>
             ) : null}
+
+            <section className="grid gap-4 xl:grid-cols-4">
+              <div className="analytics-surface rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.88),rgba(6,11,22,0.94))] p-6">
+                <p className="text-xs uppercase tracking-[0.2em] text-[#6B7280]">Possible savings</p>
+                <p className="mt-3 text-3xl font-semibold text-[#4ADE80]">
+                  {formatCurrency(intelligence.possibleSavingsMonthly, currency)}
+                </p>
+                <p className="mt-2 text-sm text-[#94A3B8]">
+                  {intelligence.cancelCandidatesCount} subscriptions currently look weak enough to cut.
+                </p>
+              </div>
+              <div className="analytics-surface rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.88),rgba(6,11,22,0.94))] p-6">
+                <p className="text-xs uppercase tracking-[0.2em] text-[#6B7280]">Yearly projection</p>
+                <p className="mt-3 text-3xl font-semibold text-[#F9FAFB]">
+                  {formatCurrency(analytics?.totalYearlyCost ?? 0, currency)}
+                </p>
+                <p className="mt-2 text-sm text-[#94A3B8]">
+                  Current recurring spend projected across a full year.
+                </p>
+              </div>
+              <div className="analytics-surface rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.88),rgba(6,11,22,0.94))] p-6">
+                <p className="text-xs uppercase tracking-[0.2em] text-[#6B7280]">Overlap exposure</p>
+                <p className="mt-3 text-3xl font-semibold text-[#FF7355]">
+                  {formatCurrency(intelligence.overlapMonthlyExposure, currency)}
+                </p>
+                <p className="mt-2 text-sm text-[#94A3B8]">
+                  {intelligence.overlapSubscriptionsCount} subscriptions sit inside overlapping service groups.
+                </p>
+              </div>
+              <div className="analytics-surface rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.88),rgba(6,11,22,0.94))] p-6">
+                <p className="text-xs uppercase tracking-[0.2em] text-[#6B7280]">Highest cost line</p>
+                <p className="mt-3 truncate text-2xl font-semibold text-[#7DD3FC]">
+                  {intelligence.highestCostSubscription?.name ?? "-"}
+                </p>
+                <p className="mt-2 text-sm text-[#94A3B8]">
+                  {intelligence.highestCostSubscription
+                    ? formatCurrency(intelligence.highestCostMonthlyEquivalent, currency)
+                    : "Add active subscriptions to compare monthly pressure."}
+                </p>
+              </div>
+            </section>
 
             <div className="grid items-start gap-8 lg:grid-cols-2">
               <Card hover={false} className="analytics-card overflow-hidden">

@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { Bell, Download, KeyRound, LogOut, RefreshCw, Shield, Trash2, Upload, Wallet } from "lucide-react";
+import { Bell, Download, KeyRound, LogOut, RefreshCw, Shield, SlidersHorizontal, Trash2, Upload, Wallet } from "lucide-react";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { ConnectionError } from "@/components/errors/ConnectionError";
 import { AppShell } from "@/components/layout/AppShell";
@@ -58,7 +58,7 @@ function Section({
 }
 
 export default function SettingsPage() {
-  const { language } = useAppUi();
+  const { language, modules, setModuleEnabled } = useAppUi();
   const t = (fallback: string, values?: Record<string, string>) =>
     translate(language, (values ?? {}) as Record<typeof language, string>, fallback);
   const router = useRouter();
@@ -431,6 +431,63 @@ export default function SettingsPage() {
                     </div>
                   ) : null}
                 </div>
+              </Section>
+
+              <Section title="Optional modules" description="Enable lightweight features only when you want them in the product." icon={SlidersHorizontal}>
+                <div className="grid gap-4 lg:grid-cols-2">
+                  {[
+                    ["renewalCalendar", "Renewal calendar", "Compact renewal calendar on the dashboard."],
+                    ["costPerDay", "Cost per day", "Show effective daily cost beside subscription pricing."],
+                    ["usageFlags", "Usage flags", "Mark subscriptions as used or unused."],
+                    ["pauseTracking", "Pause tracking", "Temporarily pause subscriptions without deleting them."],
+                    ["subscriptionTags", "Subscription tags", "Attach lightweight private tags to subscriptions."],
+                  ].map(([key, title, description]) => {
+                    const moduleKey = key as keyof typeof modules;
+
+                    return (
+                      <div
+                        key={moduleKey}
+                        className="flex items-start justify-between gap-4 rounded-2xl border border-white/10 bg-white/5 p-4"
+                      >
+                        <div className="space-y-1">
+                          <p className="text-sm font-medium text-[#F9FAFB]">{title}</p>
+                          <p className="text-sm text-[#94A3B8]">{description}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setModuleEnabled(moduleKey, !modules[moduleKey]);
+                            setFeedback((current) => ({
+                              ...current,
+                              modules: {
+                                tone: "success",
+                                message: `${title} ${modules[moduleKey] ? "disabled" : "enabled"}.`,
+                              },
+                            }));
+                          }}
+                          className={cn(
+                            "relative h-7 w-12 rounded-full border transition",
+                            modules[moduleKey]
+                              ? "border-[#4ADE80]/40 bg-[#4ADE80]/25"
+                              : "border-white/10 bg-white/5",
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              "absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform",
+                              modules[moduleKey] ? "left-6" : "left-0.5",
+                            )}
+                          />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+                {feedback.modules ? (
+                  <div className="mt-4">
+                    <StatusBanner tone={feedback.modules.tone}>{feedback.modules.message}</StatusBanner>
+                  </div>
+                ) : null}
               </Section>
             </div>
           </div>

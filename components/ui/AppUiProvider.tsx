@@ -11,6 +11,15 @@ import {
 import { LANGUAGES, type AppLanguage, getLanguageLabel } from "@/lib/i18n";
 
 type ToastTone = "success" | "error" | "info";
+type UsageFlagState = "used" | "unused";
+
+export interface FeatureModules {
+  renewalCalendar: boolean;
+  costPerDay: boolean;
+  usageFlags: boolean;
+  pauseTracking: boolean;
+  subscriptionTags: boolean;
+}
 
 interface ToastState {
   id: number;
@@ -24,25 +33,72 @@ interface AppUiContextValue {
   languages: readonly AppLanguage[];
   getLanguageLabel: (language: AppLanguage) => string;
   showToast: (message: string, tone?: ToastTone, durationMs?: number) => void;
+  modules: FeatureModules;
+  setModuleEnabled: (module: keyof FeatureModules, enabled: boolean) => void;
+  usageFlags: Record<string, UsageFlagState | undefined>;
+  setUsageFlag: (subscriptionId: string, value: UsageFlagState | null) => void;
+  pausedSubscriptions: Record<string, boolean | undefined>;
+  setPausedSubscription: (subscriptionId: string, paused: boolean) => void;
+  subscriptionTags: Record<string, string[] | undefined>;
+  setSubscriptionTags: (subscriptionId: string, tags: string[]) => void;
 }
 
 const AppUiContext = createContext<AppUiContextValue | null>(null);
 
+const DEFAULT_MODULES: FeatureModules = {
+  renewalCalendar: false,
+  costPerDay: false,
+  usageFlags: false,
+  pauseTracking: false,
+  subscriptionTags: false,
+};
+
+const LANGUAGE_KEY = "controlme.language";
+const MODULES_KEY = "controlme.modules";
+const USAGE_FLAGS_KEY = "controlme.usage-flags";
+const PAUSED_KEY = "controlme.paused-subscriptions";
+const TAGS_KEY = "controlme.subscription-tags";
+
+function parseJson<T>(value: string | null, fallback: T): T {
+  if (!value) return fallback;
+
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return fallback;
+  }
+}
+
 export function AppUiProvider({ children }: { children: React.ReactNode }) {
   const [language, setLanguageState] = useState<AppLanguage>("EN");
   const [toast, setToast] = useState<ToastState | null>(null);
+  const [modules, setModules] = useState<FeatureModules>(DEFAULT_MODULES);
+  const [usageFlags, setUsageFlags] = useState<
+    Record<string, UsageFlagState | undefined>
+  >({});
+  const [pausedSubscriptions, setPausedSubscriptions] = useState<
+    Record<string, boolean | undefined>
+  >({});
+  const [subscriptionTags, setSubscriptionTagsState] = useState<
+    Record<string, string[] | undefined>
+  >({});
 
   useEffect(() => {
-    const stored = window.localStorage.getItem("controlme.language") as AppLanguage | null;
-    if (stored && LANGUAGES.includes(stored)) {
-      setLanguageState(stored);
-      document.documentElement.lang = stored.toLowerCase();
+    const storedLanguage = window.localStorage.getItem(LANGUAGE_KEY) as AppLanguage | null;
+    if (storedLanguage && LANGUAGES.includes(storedLanguage)) {
+      setLanguageState(storedLanguage);
+      document.documentElement.lang = storedLanguage.toLowerCase();
     }
+
+    setModules(parseJson(window.localStorage.getItem(MODULES_KEY), DEFAULT_MODULES));
+    setUsageFlags(parseJson(window.localStorage.getItem(USAGE_FLAGS_KEY), {}));
+    setPausedSubscriptions(parseJson(window.localStorage.getItem(PAUSED_KEY), {}));
+    setSubscriptionTagsState(parseJson(window.localStorage.getItem(TAGS_KEY), {}));
   }, []);
 
   const setLanguage = useCallback((nextLanguage: AppLanguage) => {
     setLanguageState(nextLanguage);
-    window.localStorage.setItem("controlme.language", nextLanguage);
+    window.localStorage.setItem(LANGUAGE_KEY, nextLanguage);
     document.documentElement.lang = nextLanguage.toLowerCase();
   }, []);
 
@@ -57,6 +113,58 @@ export function AppUiProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
+  const setModuleEnabled = useCallback(
+    (module: keyof FeatureModules, enabled: boolean) => {
+      setModules((current) => {
+        const next = { ...current, [module]: enabled };
+        window.localStorage.setItem(MODULES_KEY, JSON.stringify(next));
+        return next;
+      });
+    },
+    [],
+  );
+
+  const setUsageFlag = useCallback((subscriptionId: string, value: UsageFlagState | null) => {
+    setUsageFlags((current) => {
+      const next = { ...current };
+
+      if (value === null) {
+        delete next[subscriptionId];
+      } else {
+        next[subscriptionId] = value;
+      }
+
+      window.localStorage.setItem(USAGE_FLAGS_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
+  const setPausedSubscription = useCallback((subscriptionId: string, paused: boolean) => {
+    setPausedSubscriptions((current) => {
+      const next = { ...current, [subscriptionId]: paused };
+      if (!paused) {
+        delete next[subscriptionId];
+      }
+      window.localStorage.setItem(PAUSED_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
+  const setSubscriptionTags = useCallback((subscriptionId: string, tags: string[]) => {
+    setSubscriptionTagsState((current) => {
+      const sanitized = tags
+        .map((tag) => tag.trim())
+        .filter(Boolean)
+        .slice(0, 6);
+      const next = { ...current, [subscriptionId]: sanitized };
+      if (sanitized.length === 0) {
+        delete next[subscriptionId];
+      }
+      window.localStorage.setItem(TAGS_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
   const value = useMemo<AppUiContextValue>(
     () => ({
       language,
@@ -64,8 +172,28 @@ export function AppUiProvider({ children }: { children: React.ReactNode }) {
       languages: LANGUAGES,
       getLanguageLabel,
       showToast,
+      modules,
+      setModuleEnabled,
+      usageFlags,
+      setUsageFlag,
+      pausedSubscriptions,
+      setPausedSubscription,
+      subscriptionTags,
+      setSubscriptionTags,
     }),
-    [language, setLanguage, showToast],
+    [
+      language,
+      setLanguage,
+      showToast,
+      modules,
+      setModuleEnabled,
+      usageFlags,
+      setUsageFlag,
+      pausedSubscriptions,
+      setPausedSubscription,
+      subscriptionTags,
+      setSubscriptionTags,
+    ],
   );
 
   return (

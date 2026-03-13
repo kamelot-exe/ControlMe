@@ -20,6 +20,8 @@ import { useMe } from "@/hooks/use-auth";
 import { useApiError } from "@/hooks/use-api-error";
 import { translate } from "@/lib/i18n";
 import { getLocalizedCategoryName } from "@/lib/subscriptions/categories";
+import { buildSubscriptionIntelligence } from "@/lib/subscriptions/intelligence";
+import { applyPausedState } from "@/lib/subscriptions/modules";
 import { cn } from "@/lib/utils";
 import {
   formatCurrency,
@@ -44,7 +46,7 @@ function getTrend(current?: number, previous?: number) {
 
 export default function DashboardPage() {
   const [upcomingView, setUpcomingView] = useState<"timeline" | "list">("timeline");
-  const { language } = useAppUi();
+  const { language, modules, pausedSubscriptions } = useAppUi();
   const t = (fallback: string, values?: Record<string, string>) =>
     translate(language, (values ?? {}) as Record<typeof language, string>, fallback);
 
@@ -58,8 +60,8 @@ export default function DashboardPage() {
   const analyticsError = useApiError(analyticsQuery);
 
   const subscriptions = useMemo(
-    () => subscriptionsQuery.data?.data ?? [],
-    [subscriptionsQuery.data],
+    () => applyPausedState(subscriptionsQuery.data?.data ?? [], modules, pausedSubscriptions),
+    [modules, pausedSubscriptions, subscriptionsQuery.data],
   );
   const analytics = analyticsQuery.data?.data;
   const alerts = alertsQuery.data?.data?.alerts ?? [];
@@ -80,11 +82,30 @@ export default function DashboardPage() {
     () => getUpcomingCharges(subscriptions, 30),
     [subscriptions],
   );
-  const urgentCharges = upcomingCharges.filter(
-    (item) => getDaysUntil(item.nextChargeDate) <= 7,
-  );
-  const upcomingTotal = upcomingCharges.reduce((sum, item) => sum + item.price, 0);
+  const renewalCalendarDays = useMemo(() => {
+    const grouped = new Map<string, { count: number; total: number; dayLabel: string }>();
 
+    getUpcomingCharges(subscriptions, 14).forEach((subscription) => {
+      const date = new Date(subscription.nextChargeDate);
+      const key = date.toISOString().slice(0, 10);
+      const dayLabel = date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      const existing = grouped.get(key) ?? { count: 0, total: 0, dayLabel };
+      grouped.set(key, {
+        count: existing.count + 1,
+        total: existing.total + subscription.price,
+        dayLabel,
+      });
+    });
+
+    return Array.from(grouped.entries()).map(([key, value]) => ({
+      key,
+      ...value,
+    }));
+  }, [subscriptions]);
+  const intelligence = useMemo(
+    () => buildSubscriptionIntelligence(subscriptions),
+    [subscriptions],
+  );
   const topCategory = analytics?.categoryBreakdown?.length
     ? [...analytics.categoryBreakdown].sort((a, b) => b.total - a.total)[0]
     : null;
@@ -408,7 +429,7 @@ export default function DashboardPage() {
                       PT: "Total de 30 dias",
                     })}:{" "}
                     <span className="font-medium text-[#F9FAFB]">
-                      {formatCurrency(upcomingTotal, currency)}
+                      {formatCurrency(intelligence.next30DaysTotal, currency)}
                     </span>
                   </p>
                 </div>
@@ -425,13 +446,13 @@ export default function DashboardPage() {
                 },
                 {
                   label: t("Urgent renewals", { FR: "Renouvellements urgents", RU: "Срочные продления", ES: "Renovaciones urgentes", PT: "Renovacoes urgentes" }),
-                  value: String(urgentCharges.length),
-                  tone: urgentCharges.length > 0 ? "text-[#F59E0B]" : "text-[#F9FAFB]",
+                  value: String(intelligence.next7DaysCount),
+                  tone: intelligence.next7DaysCount > 0 ? "text-[#F59E0B]" : "text-[#F9FAFB]",
                   detail: t("Due within the next 7 days", { FR: "Dus dans les 7 prochains jours", RU: "Списание в ближайшие 7 дней", ES: "Vence en los proximos 7 dias", PT: "Vence nos proximos 7 dias" }),
                 },
                 {
                   label: t("Next 30-day total", { FR: "Total 30 jours", RU: "Итого за 30 дней", ES: "Total de 30 dias", PT: "Total de 30 dias" }),
-                  value: formatCurrency(upcomingTotal, currency),
+                  value: formatCurrency(intelligence.next30DaysTotal, currency),
                   tone: "text-[#F9FAFB]",
                   detail: t("Projected total of scheduled charges in the next 30 days", { FR: "Montant prevu des paiements a venir", RU: "Прогноз по запланированным списаниям на 30 дней", ES: "Total previsto de cobros programados en 30 dias", PT: "Total previsto de cobrancas programadas em 30 dias" }),
                 },
@@ -456,6 +477,236 @@ export default function DashboardPage() {
               ))}
             </section>
 
+            <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+              <div className="glass-hover rounded-3xl p-6">
+                <div className="mb-5 flex items-start justify-between gap-4">
+                  <div>
+                    <h2 className="text-xl font-semibold text-[#F9FAFB]">
+                      {t("Savings intelligence", {
+                        FR: "Intelligence d'economies",
+                        RU: "Потенциал экономии",
+                        ES: "Inteligencia de ahorro",
+                        PT: "Inteligencia de economia",
+                      })}
+                    </h2>
+                    <p className="text-sm text-[#9CA3AF]">
+                      {t("Conservative savings signals based on low-need subscriptions and overlapping services.", {
+                        FR: "Signaux prudents bases sur les abonnements a faible valeur et les chevauchements.",
+                        RU: "Консервативные сигналы экономии на малополезных и пересекающихся подписках.",
+                        ES: "Senales conservadoras basadas en baja utilidad y servicios superpuestos.",
+                        PT: "Sinais conservadores com base em baixa utilidade e servicos sobrepostos.",
+                      })}
+                    </p>
+                  </div>
+                  <Tag variant="warning" size="md">
+                    {intelligence.cancelCandidatesCount}{" "}
+                    {t("cancel candidates", {
+                      FR: "candidats a couper",
+                      RU: "кандидатов на отмену",
+                      ES: "candidatas a cancelar",
+                      PT: "candidatas ao corte",
+                    })}
+                  </Tag>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <p className="text-xs uppercase tracking-[0.2em] text-[#6B7280]">
+                      {t("Possible savings this month", {
+                        FR: "Economies possibles ce mois",
+                        RU: "Возможная экономия в месяц",
+                        ES: "Ahorro posible este mes",
+                        PT: "Economia possivel neste mes",
+                      })}
+                    </p>
+                    <p className="mt-3 text-2xl font-semibold text-[#4ADE80]">
+                      {formatCurrency(intelligence.possibleSavingsMonthly, currency)}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <p className="text-xs uppercase tracking-[0.2em] text-[#6B7280]">
+                      {t("Possible savings this year", {
+                        FR: "Economies possibles cette annee",
+                        RU: "Возможная экономия в год",
+                        ES: "Ahorro posible este ano",
+                        PT: "Economia possivel neste ano",
+                      })}
+                    </p>
+                    <p className="mt-3 text-2xl font-semibold text-[#F9FAFB]">
+                      {formatCurrency(intelligence.possibleSavingsYearly, currency)}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <p className="text-xs uppercase tracking-[0.2em] text-[#6B7280]">
+                      {t("Overlap exposure", {
+                        FR: "Chevauchement",
+                        RU: "Перекрывающиеся сервисы",
+                        ES: "Solapamiento",
+                        PT: "Sobreposicao",
+                      })}
+                    </p>
+                    <p className="mt-3 text-2xl font-semibold text-[#FF7355]">
+                      {formatCurrency(intelligence.overlapMonthlyExposure, currency)}
+                    </p>
+                    <p className="mt-2 text-sm text-[#9CA3AF]">
+                      {intelligence.overlapGroupsCount}{" "}
+                      {t("overlapping groups", {
+                        FR: "groupes qui se chevauchent",
+                        RU: "перекрывающихся групп",
+                        ES: "grupos superpuestos",
+                        PT: "grupos sobrepostos",
+                      })}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <p className="text-xs uppercase tracking-[0.2em] text-[#6B7280]">
+                      {t("Highest cost subscription", {
+                        FR: "Abonnement le plus couteux",
+                        RU: "Самая дорогая подписка",
+                        ES: "Suscripcion mas costosa",
+                        PT: "Assinatura mais cara",
+                      })}
+                    </p>
+                    <p className="mt-3 truncate text-xl font-semibold text-[#7DD3FC]">
+                      {intelligence.highestCostSubscription?.name ?? "-"}
+                    </p>
+                    <p className="mt-2 text-sm text-[#9CA3AF]">
+                      {intelligence.highestCostSubscription
+                        ? formatCurrency(intelligence.highestCostMonthlyEquivalent, currency)
+                        : t("Waiting for enough data", {
+                            FR: "En attente de donnees",
+                            RU: "Ожидание данных",
+                            ES: "Esperando datos",
+                            PT: "Aguardando dados",
+                          })}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="glass-hover rounded-3xl p-6">
+                <h2 className="text-xl font-semibold text-[#F9FAFB]">
+                  {t("Renewal pressure", {
+                    FR: "Pression de renouvellement",
+                    RU: "Нагрузка ближайших списаний",
+                    ES: "Presion de renovaciones",
+                    PT: "Pressao de renovacoes",
+                  })}
+                </h2>
+                <p className="mt-1 text-sm text-[#9CA3AF]">
+                  {t("Use the next 7 and 30 days to judge how much billing pressure is building.", {
+                    FR: "Utilisez les 7 et 30 prochains jours pour juger la pression de paiement a venir.",
+                    RU: "Смотрите на ближайшие 7 и 30 дней, чтобы заранее понять платёжную нагрузку.",
+                    ES: "Usa los proximos 7 y 30 dias para medir la presion de cobros.",
+                    PT: "Use os proximos 7 e 30 dias para medir a pressao de cobranca.",
+                  })}
+                </p>
+
+                <div className="mt-6 space-y-4">
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <div className="flex items-center justify-between gap-4">
+                      <span className="text-sm text-[#9CA3AF]">
+                        {t("Due in the next 7 days", {
+                          FR: "Dus dans 7 jours",
+                          RU: "К оплате за 7 дней",
+                          ES: "Vence en 7 dias",
+                          PT: "Vence em 7 dias",
+                        })}
+                      </span>
+                      <span className="text-sm font-semibold text-[#F59E0B]">
+                        {intelligence.next7DaysCount}
+                      </span>
+                    </div>
+                    <p className="mt-3 text-2xl font-semibold text-[#F9FAFB]">
+                      {formatCurrency(intelligence.next7DaysTotal, currency)}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <div className="flex items-center justify-between gap-4">
+                      <span className="text-sm text-[#9CA3AF]">
+                        {t("Due in the next 30 days", {
+                          FR: "Dus dans 30 jours",
+                          RU: "К оплате за 30 дней",
+                          ES: "Vence en 30 dias",
+                          PT: "Vence em 30 dias",
+                        })}
+                      </span>
+                      <span className="text-sm font-semibold text-[#38BDF8]">
+                        {intelligence.next30DaysCount}
+                      </span>
+                    </div>
+                    <p className="mt-3 text-2xl font-semibold text-[#F9FAFB]">
+                      {formatCurrency(intelligence.next30DaysTotal, currency)}
+                    </p>
+                  </div>
+                  {intelligence.topCategory ? (
+                    <StatusBanner tone="info" title={t("Biggest spending cluster", {
+                      FR: "Groupe principal",
+                      RU: "Главный кластер трат",
+                      ES: "Grupo principal",
+                      PT: "Grupo principal",
+                    })}>
+                      {getLocalizedCategoryName(intelligence.topCategory.name, language)}{" "}
+                      {t("currently represents", {
+                        FR: "represente actuellement",
+                        RU: "сейчас составляет",
+                        ES: "representa actualmente",
+                        PT: "representa atualmente",
+                      })}{" "}
+                      {Math.round(intelligence.topCategory.share * 100)}%{" "}
+                      {t("of monthly spend.", {
+                        FR: "des depenses mensuelles.",
+                        RU: "месячных расходов.",
+                        ES: "del gasto mensual.",
+                        PT: "do gasto mensal.",
+                      })}
+                    </StatusBanner>
+                  ) : null}
+                </div>
+              </div>
+            </section>
+
+            {modules.renewalCalendar ? (
+              <section className="glass-hover rounded-3xl p-6">
+                <div className="mb-5 flex items-center justify-between gap-4">
+                  <div>
+                    <h2 className="text-xl font-semibold text-[#F9FAFB]">Renewal calendar</h2>
+                    <p className="text-sm text-[#9CA3AF]">
+                      Compact day-by-day view of the next 14 days of renewals.
+                    </p>
+                  </div>
+                  <Tag variant="info" size="md">
+                    {renewalCalendarDays.length} active days
+                  </Tag>
+                </div>
+
+                {renewalCalendarDays.length === 0 ? (
+                  <StatusBanner tone="neutral" title="No renewals in the next 14 days">
+                    Your near-term renewal calendar is currently clear.
+                  </StatusBanner>
+                ) : (
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    {renewalCalendarDays.map((day) => (
+                      <div
+                        key={day.key}
+                        className="rounded-2xl border border-white/10 bg-white/5 p-4"
+                      >
+                        <p className="text-xs uppercase tracking-[0.2em] text-[#6B7280]">
+                          {day.dayLabel}
+                        </p>
+                        <p className="mt-3 text-2xl font-semibold text-[#F9FAFB]">
+                          {day.count}
+                        </p>
+                        <p className="mt-2 text-sm text-[#94A3B8]">
+                          {formatCurrency(day.total, currency)} due
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+            ) : null}
+
             <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
               <div className="glass-hover rounded-3xl p-6">
                 <div className="mb-5 flex items-center justify-between">
@@ -473,6 +724,18 @@ export default function DashboardPage() {
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center justify-end gap-2">
+                    <Tag variant="warning" size="sm">
+                      {intelligence.next7DaysCount}{" "}
+                      {t("in 7 days", {
+                        FR: "sur 7 jours",
+                        RU: "за 7 дней",
+                        ES: "en 7 dias",
+                        PT: "em 7 dias",
+                      })}
+                    </Tag>
+                    <Tag variant="info" size="sm">
+                      {formatCurrency(intelligence.next30DaysTotal, currency)}
+                    </Tag>
                     <div className="flex rounded-2xl border border-white/10 bg-white/5 p-1">
                       <button
                         type="button"

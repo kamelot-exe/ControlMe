@@ -21,10 +21,12 @@ import {
   toMonthlyEquivalent,
 } from "@/lib/utils/format";
 import { translate } from "@/lib/i18n";
+import { buildSubscriptionIntelligence } from "@/lib/subscriptions/intelligence";
+import { applyPausedState } from "@/lib/subscriptions/modules";
 import type { Subscription } from "@/shared/types";
 
 export default function SubscriptionsPage() {
-  const { language } = useAppUi();
+  const { language, modules, pausedSubscriptions } = useAppUi();
   const t = (fallback: string, values?: Record<string, string>) =>
     translate(language, values ?? {}, fallback);
   const subscriptionsQuery = useSubscriptions();
@@ -40,8 +42,12 @@ export default function SubscriptionsPage() {
   const [deleteSubscription, setDeleteSubscription] = useState<Subscription | null>(null);
 
   const subscriptions = useMemo(
-    () => subscriptionsQuery.data?.data ?? [],
-    [subscriptionsQuery.data]
+    () => applyPausedState(subscriptionsQuery.data?.data ?? [], modules, pausedSubscriptions),
+    [modules, pausedSubscriptions, subscriptionsQuery.data]
+  );
+  const intelligence = useMemo(
+    () => buildSubscriptionIntelligence(subscriptions),
+    [subscriptions],
   );
 
   const currency = meQuery.data?.data?.currency ?? "USD";
@@ -327,6 +333,68 @@ export default function SubscriptionsPage() {
                     <p className="mt-3 text-2xl font-semibold text-[#FF7355]">{upcomingCount}</p>
                   </div>
                 </div>
+              </div>
+            </section>
+
+            <section className="grid gap-4 xl:grid-cols-4">
+              <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.9),rgba(6,11,22,0.95))] p-5">
+                <p className="text-xs uppercase tracking-[0.2em] text-[#6B7280]">
+                  {t("Possible savings", { FR: "Economies possibles", RU: "Потенциал экономии", ES: "Ahorro posible", PT: "Economia possivel" })}
+                </p>
+                <p className="mt-3 text-3xl font-semibold text-[#4ADE80]">
+                  {formatCurrency(intelligence.possibleSavingsMonthly, currency)}
+                </p>
+                <p className="mt-2 text-sm text-[#9CA3AF]">
+                  {intelligence.cancelCandidatesCount}{" "}
+                  {t("subscriptions look weak enough to review for cancellation.", {
+                    FR: "abonnements semblent assez faibles pour etre coupes.",
+                    RU: "подписок выглядят слабыми кандидатами на отключение.",
+                    ES: "suscripciones parecen candidatas a cancelar.",
+                    PT: "assinaturas parecem candidatas ao corte.",
+                  })}
+                </p>
+              </div>
+              <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.9),rgba(6,11,22,0.95))] p-5">
+                <p className="text-xs uppercase tracking-[0.2em] text-[#6B7280]">
+                  {t("Overlap exposure", { FR: "Chevauchement", RU: "Перекрытия", ES: "Solapamiento", PT: "Sobreposicao" })}
+                </p>
+                <p className="mt-3 text-3xl font-semibold text-[#FF7355]">
+                  {formatCurrency(intelligence.overlapMonthlyExposure, currency)}
+                </p>
+                <p className="mt-2 text-sm text-[#9CA3AF]">
+                  {intelligence.overlapGroupsCount}{" "}
+                  {t("groups compete for the same budget.", {
+                    FR: "groupes se disputent le meme budget.",
+                    RU: "групп конкурируют за один и тот же бюджет.",
+                    ES: "grupos compiten por el mismo presupuesto.",
+                    PT: "grupos competem pelo mesmo orcamento.",
+                  })}
+                </p>
+              </div>
+              <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.9),rgba(6,11,22,0.95))] p-5">
+                <p className="text-xs uppercase tracking-[0.2em] text-[#6B7280]">
+                  {t("Highest monthly line item", { FR: "Plus gros poste mensuel", RU: "Самая тяжёлая строка в месяц", ES: "Partida mensual mas alta", PT: "Maior linha mensal" })}
+                </p>
+                <p className="mt-3 truncate text-2xl font-semibold text-[#7DD3FC]">
+                  {intelligence.highestCostSubscription?.name ?? "-"}
+                </p>
+                <p className="mt-2 text-sm text-[#9CA3AF]">
+                  {intelligence.highestCostSubscription
+                    ? formatCurrency(intelligence.highestCostMonthlyEquivalent, currency)
+                    : t("No active subscriptions yet.", { FR: "Pas encore d'abonnements actifs.", RU: "Активных подписок пока нет.", ES: "Aun no hay suscripciones activas.", PT: "Ainda nao ha assinaturas ativas." })}
+                </p>
+              </div>
+              <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.9),rgba(6,11,22,0.95))] p-5">
+                <p className="text-xs uppercase tracking-[0.2em] text-[#6B7280]">
+                  {t("Renewal pressure", { FR: "Pression de renouvellement", RU: "Ближайшие списания", ES: "Presion de renovaciones", PT: "Pressao de renovacoes" })}
+                </p>
+                <p className="mt-3 text-3xl font-semibold text-[#F9FAFB]">
+                  {formatCurrency(intelligence.next7DaysTotal, currency)}
+                </p>
+                <p className="mt-2 text-sm text-[#9CA3AF]">
+                  {intelligence.next7DaysCount}{" "}
+                  {t("charges land in the next 7 days.", { FR: "paiements tombent dans les 7 jours.", RU: "списаний придут в ближайшие 7 дней.", ES: "cargos llegan en los proximos 7 dias.", PT: "cobrancas chegam nos proximos 7 dias." })}
+                </p>
               </div>
             </section>
             

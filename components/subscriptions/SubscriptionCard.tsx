@@ -8,6 +8,7 @@ import { useAppUi } from "@/components/ui/AppUiProvider";
 import type { Currency, Subscription } from "@/shared/types";
 import { evaluateSubscriptionReview } from "@/lib/subscriptions/review";
 import { translate } from "@/lib/i18n";
+import { getSubscriptionTags, getUsageLabel } from "@/lib/subscriptions/modules";
 import { cn } from "@/lib/utils";
 import { ServiceBadge } from "./ServiceBadge";
 import {
@@ -15,6 +16,7 @@ import {
   formatCurrency,
   formatDate,
   getDaysUntil,
+  toMonthlyEquivalent,
 } from "@/lib/utils/format";
 
 interface SubscriptionCardProps {
@@ -32,7 +34,7 @@ export function SubscriptionCard({
   onEdit,
   onDelete,
 }: SubscriptionCardProps) {
-  const { language } = useAppUi();
+  const { language, modules, usageFlags, pausedSubscriptions, subscriptionTags } = useAppUi();
   const t = (fallback: string, values?: Record<string, string>) =>
     translate(language, values ?? {}, fallback);
   const daysUntil = getDaysUntil(subscription.nextChargeDate);
@@ -41,10 +43,17 @@ export function SubscriptionCard({
   const isToday = daysUntil === 0;
   const isTomorrow = daysUntil === 1;
   const review = evaluateSubscriptionReview(subscription, allSubscriptions);
+  const usageLabel = getUsageLabel(modules, usageFlags, subscription.id);
+  const paused = modules.pauseTracking && !!pausedSubscriptions[subscription.id];
+  const tags = getSubscriptionTags(modules, subscriptionTags, subscription.id);
+  const costPerDay = toMonthlyEquivalent(subscription.price, subscription.billingPeriod) / 30;
 
   const statusTag = (() => {
     if (!subscription.isActive) {
       return <Tag variant="error" size="sm">{t("Inactive", { FR: "Inactif", RU: "Неактивна", UK: "Неактивна", GE: "Inaktiv", ES: "Inactiva", PT: "Inativa", IT: "Inattiva", PL: "Nieaktywna", TR: "Pasif", UZ: "Faol emas" })}</Tag>;
+    }
+    if (paused) {
+      return <Tag variant="info" size="sm">Paused</Tag>;
     }
     if (isOverdue) {
       return <Tag variant="error" size="sm">{t("Overdue", { FR: "En retard", RU: "Просрочена", UK: "Прострочена", GE: "Überfällig", ES: "Atrasada", PT: "Atrasada", IT: "Scaduta", PL: "Zaległa", TR: "Gecikti", UZ: "Muddati o'tgan" })}</Tag>;
@@ -119,8 +128,25 @@ export function SubscriptionCard({
                   >
                     {review.label}
                   </Tag>
+                  {modules.usageFlags && usageLabel ? (
+                    <Tag variant={usageLabel === "used" ? "success" : "warning"} size="sm">
+                      {usageLabel === "used" ? "Used" : "Unused"}
+                    </Tag>
+                  ) : null}
                   {statusTag}
                 </div>
+                {modules.subscriptionTags && tags.length > 0 ? (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {tags.slice(0, 2).map((tag) => (
+                      <span
+                        key={tag}
+                        className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] uppercase tracking-[0.14em] text-[#AFC0CF]"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
               </div>
             </div>
 
@@ -171,6 +197,17 @@ export function SubscriptionCard({
               {formatBillingPeriod(subscription.billingPeriod)}
             </Tag>
           </div>
+
+          {modules.costPerDay ? (
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2.5">
+              <div className="flex items-center justify-between gap-3 text-sm">
+                <span className="text-[#9CA3AF]">Cost per day</span>
+                <span className="font-medium text-[#DCE6EE]">
+                  {formatCurrency(costPerDay, currency)}
+                </span>
+              </div>
+            </div>
+          ) : null}
 
           <div className="space-y-2.5 border-t border-white/10 pt-4">
             <div className="flex items-center justify-between text-sm">
