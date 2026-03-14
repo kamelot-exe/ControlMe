@@ -864,8 +864,9 @@ export class EmailSchedulerService {
   }
 
   private formatDateForEmail(date: Date, timeZone: string) {
+    const safeTimeZone = this.getSafeTimeZone(timeZone);
     return new Intl.DateTimeFormat("en-US", {
-      timeZone,
+      timeZone: safeTimeZone,
       month: "short",
       day: "numeric",
       year: "numeric",
@@ -873,8 +874,9 @@ export class EmailSchedulerService {
   }
 
   private formatDateKeyInTimeZone(date: Date, timeZone: string) {
+    const safeTimeZone = this.getSafeTimeZone(timeZone);
     const parts = new Intl.DateTimeFormat("en-CA", {
-      timeZone,
+      timeZone: safeTimeZone,
       year: "numeric",
       month: "2-digit",
       day: "2-digit",
@@ -895,8 +897,9 @@ export class EmailSchedulerService {
   }
 
   private getLocalDateContext(timeZone: string, now: Date = new Date()): LocalDateContext {
+    const safeTimeZone = this.getSafeTimeZone(timeZone);
     const parts = new Intl.DateTimeFormat("en-CA", {
-      timeZone,
+      timeZone: safeTimeZone,
       year: "numeric",
       month: "2-digit",
       day: "2-digit",
@@ -912,7 +915,7 @@ export class EmailSchedulerService {
     const minute = this.readPart(parts, "minute");
 
     return {
-      timeZone,
+      timeZone: safeTimeZone,
       dateKey: `${year}-${month}-${day}`,
       monthKey: `${year}-${month}`,
       weekKey: this.getIsoWeekKey(Number(year), Number(month), Number(day)),
@@ -920,6 +923,16 @@ export class EmailSchedulerService {
       dayOfMonth: Number(day),
       minutesOfDay: Number(hour) * 60 + Number(minute),
     };
+  }
+
+  private getSafeTimeZone(timeZone: string) {
+    try {
+      new Intl.DateTimeFormat("en-US", { timeZone });
+      return timeZone;
+    } catch {
+      this.logger.warn(`Invalid time zone "${timeZone}". Falling back to UTC.`);
+      return "UTC";
+    }
   }
 
   private getIsoWeekday(year: number, month: number, day: number) {

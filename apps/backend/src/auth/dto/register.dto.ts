@@ -1,21 +1,24 @@
 import {
   IsEmail,
-  IsString,
-  MinLength,
+  IsIn,
   IsOptional,
-  IsEnum,
+  IsString,
+  MaxLength,
+  MinLength,
 } from "class-validator";
+import { SUPPORTED_CURRENCIES } from "../../common/constants/domain.constants";
 import { Currency } from "@/shared/types";
 
 export class RegisterDto {
   @IsEmail()
-  email: string;
+  email!: string;
 
   @IsString()
-  @MinLength(6)
-  password: string;
+  @MinLength(8)
+  @MaxLength(128)
+  password!: string;
 
   @IsOptional()
-  @IsEnum(["USD", "EUR", "GBP", "RUB", "JPY"])
+  @IsIn(SUPPORTED_CURRENCIES)
   currency?: Currency;
 }

@@ -1,24 +1,21 @@
 import { Injectable } from "@nestjs/common";
+import type {
+  NotificationAlert,
+  NotificationDeliverySummary,
+  PaginatedResponse,
+} from "@/shared/types";
+import { CacheService } from "../cache/cache.service";
+import { buildPaginatedResponse } from "../common/utils/pagination.util";
 import { PrismaService } from "../prisma/prisma.service";
+import { ListNotificationHistoryQueryDto } from "./dto/list-notification-history-query.dto";
 import { UpdateNotificationSettingsDto } from "./dto/update-notification-settings.dto";
-
-type NotificationAlertType =
-  | "PRECHARGE"
-  | "UNUSED"
-  | "SPENDING_INCREASE"
-  | "DUPLICATE";
-
-export interface NotificationAlert {
-  type: NotificationAlertType;
-  message: string;
-  subscriptionId?: string;
-  daysUntil?: number;
-  percent?: number;
-}
 
 @Injectable()
 export class NotificationsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cacheService: CacheService,
+  ) {}
 
   async getOrCreateNotificationSettings(userId: string) {
     const existingSettings = await this.prisma.notificationSettings.findUnique({
@@ -52,123 +49,165 @@ export class NotificationsService {
   ) {
     await this.getOrCreateNotificationSettings(userId);
 
-    return this.prisma.notificationSettings.update({
+    const settings = await this.prisma.notificationSettings.update({
       where: { userId },
       data: dto,
     });
+
+    await this.cacheService.invalidatePrefix(`notifications:${userId}:`);
+    return settings;
   }
 
   async getSmartAlerts(userId: string): Promise<NotificationAlert[]> {
-    const settings = await this.getOrCreateNotificationSettings(userId);
+    const cacheKey = `notifications:${userId}:smart-alerts`;
 
-    if (!settings.smartAlertsEnabled) {
-      return [];
-    }
+    const { value } = await this.cacheService.wrap(cacheKey, 60, async () => {
+      const settings = await this.getOrCreateNotificationSettings(userId);
 
-    const prechargeDays = settings?.prechargeReminderDays ?? 1;
-    const now = new Date();
-    const startOfToday = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate(),
-    );
-    const unusedCutoff = new Date(startOfToday);
-    unusedCutoff.setDate(unusedCutoff.getDate() - 30);
-
-    const subscriptions = await this.prisma.subscription.findMany({
-      where: { userId, isActive: true },
-      include: { usage: true },
-      orderBy: { nextChargeDate: "asc" },
-    });
-
-    const alerts: NotificationAlert[] = [];
-
-    let currentMonthlyTotal = 0;
-    let previousMonthlyTotal = 0;
-    const previousCutoff = new Date(startOfToday);
-    previousCutoff.setDate(previousCutoff.getDate() - 30);
-
-    for (const sub of subscriptions) {
-      const monthlyPrice =
-        sub.billingPeriod === "DAILY"
-          ? Number(sub.price) * 30
-          : sub.billingPeriod === "MONTHLY"
-            ? Number(sub.price)
-            : Number(sub.price) / 12;
-
-      currentMonthlyTotal += monthlyPrice;
-      if (sub.createdAt <= previousCutoff) {
-        previousMonthlyTotal += monthlyPrice;
+      if (!settings.smartAlertsEnabled) {
+        return [];
       }
 
-      const chargeDate = new Date(
-        sub.nextChargeDate.getFullYear(),
-        sub.nextChargeDate.getMonth(),
-        sub.nextChargeDate.getDate(),
+      const prechargeDays = settings.prechargeReminderDays ?? 1;
+      const now = new Date();
+      const startOfToday = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate(),
       );
-      const daysUntil = Math.floor(
-        (chargeDate.getTime() - startOfToday.getTime()) / 86_400_000,
-      );
+      const unusedCutoff = new Date(startOfToday);
+      unusedCutoff.setDate(unusedCutoff.getDate() - 30);
 
-      if (daysUntil >= 0 && daysUntil <= prechargeDays) {
-        alerts.push({
-          type: "PRECHARGE",
-          message:
-            daysUntil === 0
-              ? `Charge today: ${sub.name}`
-              : daysUntil === 1
-                ? `Charge tomorrow: ${sub.name}`
-                : `Charge in ${daysUntil} days: ${sub.name}`,
-          subscriptionId: sub.id,
-          daysUntil,
-        });
+      const subscriptions = await this.prisma.subscription.findMany({
+        where: { userId, isActive: true },
+        include: { usage: true },
+        orderBy: { nextChargeDate: "asc" },
+      });
+
+      const alerts: NotificationAlert[] = [];
+
+      let currentMonthlyTotal = 0;
+      let previousMonthlyTotal = 0;
+      const previousCutoff = new Date(startOfToday);
+      previousCutoff.setDate(previousCutoff.getDate() - 30);
+
+      for (const subscription of subscriptions) {
+        const monthlyPrice =
+          subscription.billingPeriod === "DAILY"
+            ? Number(subscription.price) * 30
+            : subscription.billingPeriod === "MONTHLY"
+              ? Number(subscription.price)
+              : Number(subscription.price) / 12;
+
+        currentMonthlyTotal += monthlyPrice;
+        if (subscription.createdAt <= previousCutoff) {
+          previousMonthlyTotal += monthlyPrice;
+        }
+
+        const chargeDate = new Date(
+          subscription.nextChargeDate.getFullYear(),
+          subscription.nextChargeDate.getMonth(),
+          subscription.nextChargeDate.getDate(),
+        );
+        const daysUntil = Math.floor(
+          (chargeDate.getTime() - startOfToday.getTime()) / 86_400_000,
+        );
+
+        if (daysUntil >= 0 && daysUntil <= prechargeDays) {
+          alerts.push({
+            type: "PRECHARGE",
+            message:
+              daysUntil === 0
+                ? `Charge today: ${subscription.name}`
+                : daysUntil === 1
+                  ? `Charge tomorrow: ${subscription.name}`
+                  : `Charge in ${daysUntil} days: ${subscription.name}`,
+            subscriptionId: subscription.id,
+            daysUntil,
+          });
+        }
+
+        const lastUse =
+          subscription.usage?.lastConfirmedUseAt ?? subscription.createdAt;
+        if (lastUse && lastUse <= unusedCutoff) {
+          alerts.push({
+            type: "UNUSED",
+            message: `Unused subscription for 30+ days: ${subscription.name}`,
+            subscriptionId: subscription.id,
+          });
+        }
       }
 
-      const lastUse = sub.usage?.lastConfirmedUseAt ?? sub.createdAt;
-      if (lastUse && lastUse <= unusedCutoff) {
-        alerts.push({
-          type: "UNUSED",
-          message: `Unused subscription for 30+ days: ${sub.name}`,
-          subscriptionId: sub.id,
-        });
+      if (previousMonthlyTotal > 0) {
+        const increaseRatio = currentMonthlyTotal / previousMonthlyTotal;
+        const percentIncrease = Math.round((increaseRatio - 1) * 100);
+        if (percentIncrease >= 12) {
+          alerts.push({
+            type: "SPENDING_INCREASE",
+            message: `Your monthly spending increased by ${percentIncrease}% in the last 30 days`,
+            percent: percentIncrease,
+          });
+        }
       }
-    }
 
-    if (previousMonthlyTotal > 0) {
-      const increaseRatio = currentMonthlyTotal / previousMonthlyTotal;
-      const percentIncrease = Math.round((increaseRatio - 1) * 100);
-      if (percentIncrease >= 12) {
-        alerts.push({
-          type: "SPENDING_INCREASE",
-          message: `Your monthly spending increased by ${percentIncrease}% in the last 30 days`,
-          percent: percentIncrease,
-        });
-      }
-    }
+      const seenPairs = new Set<string>();
+      for (let left = 0; left < subscriptions.length; left++) {
+        for (let right = left + 1; right < subscriptions.length; right++) {
+          const subscriptionA = subscriptions[left];
+          const subscriptionB = subscriptions[right];
+          const nameA = subscriptionA.name.toLowerCase().trim();
+          const nameB = subscriptionB.name.toLowerCase().trim();
 
-    // Duplicate detection
-    const seenPairs = new Set<string>();
-    for (let i = 0; i < subscriptions.length; i++) {
-      for (let j = i + 1; j < subscriptions.length; j++) {
-        const sub1 = subscriptions[i];
-        const sub2 = subscriptions[j];
-        const nameA = sub1.name.toLowerCase().trim();
-        const nameB = sub2.name.toLowerCase().trim();
-
-        if (nameA.includes(nameB) || nameB.includes(nameA)) {
-          const pairKey = [sub1.id, sub2.id].sort().join(":");
-          if (!seenPairs.has(pairKey)) {
-            seenPairs.add(pairKey);
-            alerts.push({
-              type: "DUPLICATE",
-              message: `Possible duplicate: "${sub1.name}" and "${sub2.name}"`,
-              subscriptionId: sub1.id,
-            });
+          if (nameA.includes(nameB) || nameB.includes(nameA)) {
+            const pairKey = [subscriptionA.id, subscriptionB.id].sort().join(":");
+            if (!seenPairs.has(pairKey)) {
+              seenPairs.add(pairKey);
+              alerts.push({
+                type: "DUPLICATE",
+                message: `Possible duplicate: "${subscriptionA.name}" and "${subscriptionB.name}"`,
+                subscriptionId: subscriptionA.id,
+              });
+            }
           }
         }
       }
-    }
 
-    return alerts;
+      return alerts;
+    });
+
+    return value;
+  }
+
+  async getHistory(
+    userId: string,
+    query: ListNotificationHistoryQueryDto,
+  ): Promise<PaginatedResponse<NotificationDeliverySummary>> {
+    const where = {
+      userId,
+      ...(query.type ? { type: query.type } : {}),
+      ...(query.status ? { status: query.status } : {}),
+    };
+
+    const [total, items] = await this.prisma.$transaction([
+      this.prisma.notificationDelivery.count({ where }),
+      this.prisma.notificationDelivery.findMany({
+        where,
+        select: {
+          id: true,
+          type: true,
+          status: true,
+          subscriptionId: true,
+          scheduledFor: true,
+          sentAt: true,
+          createdAt: true,
+          payload: true,
+        },
+        orderBy: { createdAt: "desc" },
+        skip: query.skip,
+        take: query.pageSize,
+      }),
+    ]);
+
+    return buildPaginatedResponse(items, total, query.page, query.pageSize);
   }
 }

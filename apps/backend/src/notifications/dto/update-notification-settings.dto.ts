@@ -1,3 +1,4 @@
+import { Type } from "class-transformer";
 import {
   IsBoolean,
   IsInt,
@@ -7,9 +8,11 @@ import {
   Max,
   Min,
 } from "class-validator";
+import { IsTimeZone } from "../../common/validators/is-time-zone.validator";
 
 export class UpdateNotificationSettingsDto {
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   @Min(0)
   prechargeReminderDays?: number;
@@ -35,12 +38,14 @@ export class UpdateNotificationSettingsDto {
   monthlyDigestEnabled?: boolean;
 
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   @Min(1)
   @Max(7)
   weeklyDigestDay?: number;
 
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   @Min(1)
   @Max(28)
@@ -55,5 +60,6 @@ export class UpdateNotificationSettingsDto {
 
   @IsOptional()
   @IsString()
+  @IsTimeZone()
   timeZone?: string;
 }

@@ -1,6 +1,8 @@
 import { BullModule } from "@nestjs/bullmq";
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
+import { CacheModule } from "../cache/cache.module";
+import { InternalJobGuard } from "../common/guards/internal-job.guard";
 import { PrismaModule } from "../prisma/prisma.module";
 import { EmailSchedulerService } from "./email-scheduler.service";
 import { EmailService } from "./email.service";
@@ -17,6 +19,7 @@ import { NotificationsService } from "./notifications.service";
   imports: [
     PrismaModule,
     ConfigModule,
+    CacheModule,
     BullModule.registerQueue({
       name: NOTIFICATIONS_QUEUE,
     }),
@@ -33,6 +36,7 @@ import { NotificationsService } from "./notifications.service";
     NotificationDeliveryService,
     NotificationQueueService,
     NotificationEmailProcessor,
+    InternalJobGuard,
   ],
   exports: [EmailService, NotificationDeliveryService, NotificationQueueService],
 })

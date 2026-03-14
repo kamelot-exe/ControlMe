@@ -1,24 +1,31 @@
 import {
-  Controller,
-  Post,
+  BadRequestException,
   Body,
-  Get,
+  Controller,
   Delete,
+  Get,
   Patch,
+  Post,
   UseGuards,
 } from "@nestjs/common";
 import { Throttle } from "@nestjs/throttler";
-import { AuthService } from "./auth.service";
-import { RegisterDto } from "./dto/register.dto";
-import { LoginDto } from "./dto/login.dto";
-import { JwtAuthGuard } from "./guards/jwt-auth.guard";
-import { CurrentUser } from "./decorators/current-user.decorator";
-import type { AuthenticatedUser } from "./interfaces/authenticated-user.interface";
 import type { PublicUser } from "@/shared/types";
+import { AuthService } from "./auth.service";
+import { CurrentUser } from "./decorators/current-user.decorator";
+import { ChangeCurrencyDto } from "./dto/change-currency.dto";
+import { ChangePasswordDto } from "./dto/change-password.dto";
+import { ForgotPasswordDto } from "./dto/forgot-password.dto";
+import { LoginDto } from "./dto/login.dto";
+import { RefreshTokenDto } from "./dto/refresh-token.dto";
+import { RegisterDto } from "./dto/register.dto";
+import { ResetPasswordDto } from "./dto/reset-password.dto";
+import { SetBudgetLimitDto } from "./dto/set-budget-limit.dto";
+import { JwtAuthGuard } from "./guards/jwt-auth.guard";
+import type { AuthenticatedUser } from "./interfaces/authenticated-user.interface";
 
 @Controller("auth")
 export class AuthController {
-  constructor(private authService: AuthService) {}
+  constructor(private readonly authService: AuthService) {}
 
   @Throttle({ global: { limit: 10, ttl: 60000 } })
   @Post("register")
@@ -38,10 +45,10 @@ export class AuthController {
     return user;
   }
 
+  @Throttle({ global: { limit: 20, ttl: 60000 } })
   @Post("refresh")
-  @UseGuards(JwtAuthGuard)
-  async refresh(@CurrentUser() user: AuthenticatedUser) {
-    return this.authService.refreshToken(user.id, user.email);
+  async refresh(@Body() dto: RefreshTokenDto) {
+    return this.authService.refreshToken(dto.refreshToken);
   }
 
   @Delete("account")
@@ -54,19 +61,20 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   setBudgetLimit(
     @CurrentUser() user: AuthenticatedUser,
-    @Body() body: { budgetLimit: number | null },
+    @Body() dto: SetBudgetLimitDto,
   ) {
-    return this.authService.setBudgetLimit(user.id, body.budgetLimit);
-  }
+    if (dto.budgetLimit === undefined) {
+      throw new BadRequestException("budgetLimit is required");
+    }
 
-  // ─── Password Reset (public endpoints) ───────────────────────────────────────
+    return this.authService.setBudgetLimit(user.id, dto.budgetLimit);
+  }
 
   @Throttle({ global: { limit: 5, ttl: 60000 } })
   @Post("forgot-password")
-  async forgotPassword(@Body() body: { email: string }) {
-    // Returns { sent: true } always — we never reveal whether email exists
-    const result = await this.authService.requestPasswordReset(body.email);
-    // In production, email the token. Here we return it in dev mode.
+  async forgotPassword(@Body() dto: ForgotPasswordDto) {
+    const result = await this.authService.requestPasswordReset(dto.email);
+
     return {
       sent: true,
       ...(process.env.NODE_ENV !== "production" ? { token: result.token } : {}),
@@ -75,22 +83,20 @@ export class AuthController {
 
   @Throttle({ global: { limit: 5, ttl: 60000 } })
   @Post("reset-password")
-  async resetPassword(@Body() body: { token: string; password: string }) {
-    return this.authService.resetPassword(body.token, body.password);
+  async resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.authService.resetPassword(dto.token, dto.password);
   }
-
-  // ─── Authenticated account mutations ─────────────────────────────────────────
 
   @Patch("password")
   @UseGuards(JwtAuthGuard)
   async changePassword(
     @CurrentUser() user: AuthenticatedUser,
-    @Body() body: { currentPassword: string; newPassword: string },
+    @Body() dto: ChangePasswordDto,
   ) {
     return this.authService.changePassword(
       user.id,
-      body.currentPassword,
-      body.newPassword,
+      dto.currentPassword,
+      dto.newPassword,
     );
   }
 
@@ -98,8 +104,8 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   async changeCurrency(
     @CurrentUser() user: AuthenticatedUser,
-    @Body() body: { currency: string },
+    @Body() dto: ChangeCurrencyDto,
   ) {
-    return this.authService.changeCurrency(user.id, body.currency);
+    return this.authService.changeCurrency(user.id, dto.currency);
   }
 }

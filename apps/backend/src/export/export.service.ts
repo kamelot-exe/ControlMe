@@ -1,15 +1,63 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
-import { PrismaService } from "../prisma/prisma.service";
-import { AnalyticsService } from "../analytics/analytics.service";
+import type { ExportPreview, Subscription } from "@/shared/types";
 import PDFDocument from "pdfkit";
 import { Response } from "express";
+import { CacheService } from "../cache/cache.service";
+import { AnalyticsService } from "../analytics/analytics.service";
+import { PrismaService } from "../prisma/prisma.service";
 
 @Injectable()
 export class ExportService {
   constructor(
-    private prisma: PrismaService,
-    private analyticsService: AnalyticsService,
+    private readonly prisma: PrismaService,
+    private readonly analyticsService: AnalyticsService,
+    private readonly cacheService: CacheService,
   ) {}
+
+  async getPreview(userId: string, limit = 25): Promise<ExportPreview> {
+    const cacheKey = `export:${userId}:preview:${limit}`;
+
+    const { value } = await this.cacheService.wrap(cacheKey, 60, async () => {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          currency: true,
+        },
+      });
+
+      if (!user) {
+        throw new NotFoundException("User not found");
+      }
+
+      const [summary, savings, subscriptions] = await Promise.all([
+        this.analyticsService.getMonthlyAnalytics(userId),
+        this.analyticsService.getSavingsSummary(userId),
+        this.prisma.subscription.findMany({
+          where: { userId },
+          include: { usage: true },
+          orderBy: { nextChargeDate: "asc" },
+          take: limit,
+        }),
+      ]);
+
+      return {
+        generatedAt: new Date().toISOString(),
+        currency: user.currency,
+        summary,
+        savings,
+        subscriptions: subscriptions.map(
+          (subscription): Subscription => ({
+            ...subscription,
+            billingPeriod: subscription.billingPeriod as Subscription["billingPeriod"],
+            price: Number(subscription.price),
+          }),
+        ),
+      };
+    });
+
+    return value;
+  }
 
   async generatePDF(userId: string, res: Response) {
     const user = await this.prisma.user.findUnique({
@@ -37,7 +85,6 @@ export class ExportService {
 
     doc.pipe(res);
 
-    // Header
     doc.fontSize(20).text("ControlMe - Financial Summary", { align: "center" });
     doc.moveDown();
     doc.fontSize(12).text(`Generated: ${new Date().toLocaleDateString()}`, {
@@ -45,7 +92,6 @@ export class ExportService {
     });
     doc.moveDown(2);
 
-    // Summary
     doc.fontSize(16).text("Monthly Summary", { underline: true });
     doc.moveDown();
     doc
@@ -59,42 +105,40 @@ export class ExportService {
     doc.text(`Active Subscriptions: ${analytics.activeSubscriptions}`);
     doc.moveDown(2);
 
-    // Category Breakdown
     if (analytics.categoryBreakdown.length > 0) {
       doc.fontSize(16).text("Category Breakdown", { underline: true });
       doc.moveDown();
-      analytics.categoryBreakdown.forEach((cat) => {
+      analytics.categoryBreakdown.forEach((category) => {
         doc
           .fontSize(12)
           .text(
-            `${cat.category}: ${user.currency} ${cat.total.toFixed(2)} (${cat.count} subscriptions)`,
+            `${category.category}: ${user.currency} ${category.total.toFixed(2)} (${category.count} subscriptions)`,
           );
       });
       doc.moveDown(2);
     }
 
-    // Subscriptions List
     doc.fontSize(16).text("Subscriptions", { underline: true });
     doc.moveDown();
 
-    subscriptions.forEach((sub, index) => {
+    subscriptions.forEach((subscription, index) => {
       if (index > 0 && index % 5 === 0) {
         doc.addPage();
       }
 
-      doc.fontSize(12).text(`${sub.name}`, { continued: true });
+      doc.fontSize(12).text(`${subscription.name}`, { continued: true });
       doc.fontSize(10);
-      doc.fillColor(sub.isActive ? "black" : "gray");
+      doc.fillColor(subscription.isActive ? "black" : "gray");
       doc.text(
-        ` - ${user.currency} ${Number(sub.price).toFixed(2)}/${sub.billingPeriod.toLowerCase()}`,
+        ` - ${user.currency} ${Number(subscription.price).toFixed(2)}/${subscription.billingPeriod.toLowerCase()}`,
       );
-      doc.fillColor("black"); // Reset to black
+      doc.fillColor("black");
       doc.text(
-        `Next Charge: ${new Date(sub.nextChargeDate).toLocaleDateString()}`,
+        `Next Charge: ${new Date(subscription.nextChargeDate).toLocaleDateString()}`,
       );
-      doc.text(`Category: ${sub.category}`);
-      if (sub.notes) {
-        doc.text(`Notes: ${sub.notes}`);
+      doc.text(`Category: ${subscription.category}`);
+      if (subscription.notes) {
+        doc.text(`Notes: ${subscription.notes}`);
       }
       doc.moveDown();
     });
@@ -121,15 +165,15 @@ export class ExportService {
     const headers =
       "Name,Price,Billing Period,Category,Next Charge Date,Active,Notes";
 
-    const rows = subscriptions.map((sub) => {
+    const rows = subscriptions.map((subscription) => {
       const fields = [
-        escapeField(sub.name),
-        escapeField(String(Number(sub.price))),
-        escapeField(sub.billingPeriod),
-        escapeField(sub.category),
-        escapeField(new Date(sub.nextChargeDate).toLocaleDateString()),
-        escapeField(sub.isActive ? "Yes" : "No"),
-        escapeField(sub.notes),
+        escapeField(subscription.name),
+        escapeField(String(Number(subscription.price))),
+        escapeField(subscription.billingPeriod),
+        escapeField(subscription.category),
+        escapeField(new Date(subscription.nextChargeDate).toLocaleDateString()),
+        escapeField(subscription.isActive ? "Yes" : "No"),
+        escapeField(subscription.notes),
       ];
       return fields.join(",");
     });
