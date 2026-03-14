@@ -4,5 +4,6 @@ export interface AuthenticatedUser {
   id: string;
   email: string;
   currency: Currency;
+  budgetLimit?: number | null;
   createdAt: Date | string;
 }

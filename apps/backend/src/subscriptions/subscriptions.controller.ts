@@ -1,29 +1,50 @@
 import {
-  Controller,
-  Get,
-  Post,
   Body,
-  Patch,
-  Put,
-  Param,
+  Controller,
   Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Put,
+  Query,
   UseGuards,
 } from "@nestjs/common";
-import { SubscriptionsService } from "./subscriptions.service";
-import { CreateSubscriptionDto } from "./dto/create-subscription.dto";
-import { UpdateSubscriptionDto } from "./dto/update-subscription.dto";
-import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { Throttle } from "@nestjs/throttler";
 import { CurrentUser } from "../auth/decorators/current-user.decorator";
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import type { AuthenticatedUser } from "../auth/interfaces/authenticated-user.interface";
+import { CreateSubscriptionDto } from "./dto/create-subscription.dto";
+import { ImportSubscriptionsDto } from "./dto/import-subscriptions.dto";
+import { ListSubscriptionsQueryDto } from "./dto/list-subscriptions-query.dto";
+import { UpdateSubscriptionDto } from "./dto/update-subscription.dto";
+import { SubscriptionsService } from "./subscriptions.service";
 
 @Controller("subscriptions")
 @UseGuards(JwtAuthGuard)
 export class SubscriptionsController {
   constructor(private readonly subscriptionsService: SubscriptionsService) {}
 
+  @Throttle({ global: { limit: 5, ttl: 60000 } })
   @Post("import")
-  importCsv(@CurrentUser() user: AuthenticatedUser, @Body("csv") csv: string) {
-    return this.subscriptionsService.importFromCsv(user.id, csv);
+  importCsv(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: ImportSubscriptionsDto,
+  ) {
+    return this.subscriptionsService.importFromCsv(user.id, dto.csv);
+  }
+
+  @Get("list")
+  list(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: ListSubscriptionsQueryDto,
+  ) {
+    return this.subscriptionsService.findPage(user.id, query);
+  }
+
+  @Get("overview")
+  overview(@CurrentUser() user: AuthenticatedUser) {
+    return this.subscriptionsService.getOverview(user.id);
   }
 
   @Post()

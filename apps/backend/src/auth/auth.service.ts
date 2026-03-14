@@ -1,25 +1,37 @@
 import {
-  Injectable,
-  UnauthorizedException,
-  ConflictException,
   BadRequestException,
+  ConflictException,
+  Injectable,
   NotFoundException,
+  UnauthorizedException,
 } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { JwtService } from "@nestjs/jwt";
 import * as bcrypt from "bcrypt";
 import * as crypto from "crypto";
+import { SUPPORTED_CURRENCIES } from "../common/constants/domain.constants";
 import { PrismaService } from "../prisma/prisma.service";
-import { RegisterDto } from "./dto/register.dto";
 import { LoginDto } from "./dto/login.dto";
+import { RegisterDto } from "./dto/register.dto";
+import type { AuthSession, PublicUser } from "@/shared/types";
+
+type UserRecord = {
+  budgetLimit: number | null;
+  createdAt: Date;
+  currency: string;
+  email: string;
+  id: string;
+};
 
 @Injectable()
 export class AuthService {
   constructor(
-    private prisma: PrismaService,
-    private jwtService: JwtService,
+    private readonly prisma: PrismaService,
+    private readonly jwtService: JwtService,
+    private readonly configService: ConfigService,
   ) {}
 
-  async register(dto: RegisterDto) {
+  async register(dto: RegisterDto): Promise<AuthSession> {
     const existingUser = await this.prisma.user.findUnique({
       where: { email: dto.email },
     });
@@ -36,9 +48,15 @@ export class AuthService {
         passwordHash: hashedPassword,
         currency: dto.currency || "USD",
       },
+      select: {
+        id: true,
+        email: true,
+        currency: true,
+        budgetLimit: true,
+        createdAt: true,
+      },
     });
 
-    // Create default notification settings
     await this.prisma.notificationSettings.create({
       data: {
         userId: user.id,
@@ -47,17 +65,10 @@ export class AuthService {
       },
     });
 
-    const { passwordHash, ...userWithoutPassword } = user;
-    void passwordHash;
-    const token = this.jwtService.sign({ sub: user.id, email: user.email });
-
-    return {
-      user: userWithoutPassword,
-      token,
-    };
+    return this.buildAuthSession(user);
   }
 
-  async login(dto: LoginDto) {
+  async login(dto: LoginDto): Promise<AuthSession> {
     const user = await this.prisma.user.findUnique({
       where: { email: dto.email },
     });
@@ -75,28 +86,22 @@ export class AuthService {
       throw new UnauthorizedException("Invalid credentials");
     }
 
-    const { passwordHash, ...userWithoutPassword } = user;
-    void passwordHash;
-    const token = this.jwtService.sign({ sub: user.id, email: user.email });
-
-    return {
-      user: userWithoutPassword,
-      token,
-    };
+    return this.buildAuthSession(user);
   }
 
-  async validateUser(userId: string) {
+  async validateUser(userId: string): Promise<PublicUser | null> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        currency: true,
+        budgetLimit: true,
+        createdAt: true,
+      },
     });
 
-    if (!user) {
-      return null;
-    }
-
-    const { passwordHash, ...userWithoutPassword } = user;
-    void passwordHash;
-    return userWithoutPassword;
+    return user ? this.toPublicUser(user) : null;
   }
 
   async deleteAccount(userId: string) {
@@ -108,6 +113,7 @@ export class AuthService {
       this.prisma.notificationSettings.deleteMany({ where: { userId } }),
       this.prisma.user.delete({ where: { id: userId } }),
     ]);
+
     return { success: true };
   }
 
@@ -125,31 +131,59 @@ export class AuthService {
     });
   }
 
-  async refreshToken(userId: string, email: string) {
-    const token = this.jwtService.sign({ sub: userId, email });
-    return { token };
+  async refreshToken(refreshToken: string): Promise<Omit<AuthSession, "user">> {
+    try {
+      const payload = await this.jwtService.verifyAsync<{
+        email: string;
+        sub: string;
+        type: "refresh";
+      }>(refreshToken, {
+        secret: this.getRefreshSecret(),
+      });
+
+      if (payload.type !== "refresh") {
+        throw new UnauthorizedException("Invalid refresh token");
+      }
+
+      const user = await this.prisma.user.findUnique({
+        where: { id: payload.sub },
+        select: {
+          id: true,
+          email: true,
+          currency: true,
+          budgetLimit: true,
+          createdAt: true,
+        },
+      });
+
+      if (!user) {
+        throw new UnauthorizedException("User not found");
+      }
+
+      return this.createTokens(user.id, user.email);
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+
+      throw new UnauthorizedException("Invalid or expired refresh token");
+    }
   }
 
-  // ─── Password Reset ─────────────────────────────────────────────────────────
-
-  /**
-   * Generates a reset token and returns it (caller is responsible for emailing it).
-   * We always return success even if the email doesn't exist (security best practice).
-   */
   async requestPasswordReset(email: string): Promise<{ token: string | null }> {
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user) {
-      // Don't leak whether the email exists
       return { token: null };
     }
 
     const token = crypto.randomBytes(32).toString("hex");
-    const expiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+    const expiry = new Date(Date.now() + 60 * 60 * 1000);
 
     await this.prisma.user.update({
       where: { id: user.id },
       data: {
-        passwordResetToken: token,
+        passwordResetToken: tokenHash,
         passwordResetTokenExpiry: expiry,
       },
     });
@@ -162,8 +196,9 @@ export class AuthService {
       throw new BadRequestException("Token and new password are required");
     }
 
+    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
     const user = await this.prisma.user.findUnique({
-      where: { passwordResetToken: token },
+      where: { passwordResetToken: tokenHash },
     });
 
     if (!user || !user.passwordResetTokenExpiry) {
@@ -190,19 +225,20 @@ export class AuthService {
     return { success: true };
   }
 
-  // ─── Change Password ─────────────────────────────────────────────────────────
-
   async changePassword(
     userId: string,
     currentPassword: string,
     newPassword: string,
   ) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new NotFoundException("User not found");
+    if (!user) {
+      throw new NotFoundException("User not found");
+    }
 
     const valid = await bcrypt.compare(currentPassword, user.passwordHash);
-    if (!valid)
+    if (!valid) {
       throw new UnauthorizedException("Current password is incorrect");
+    }
 
     if (newPassword.length < 8) {
       throw new BadRequestException(
@@ -219,30 +255,17 @@ export class AuthService {
     return { success: true };
   }
 
-  // ─── Change Currency ─────────────────────────────────────────────────────────
-
   async changeCurrency(userId: string, currency: string) {
-    const allowed = [
-      "USD",
-      "EUR",
-      "GBP",
-      "RUB",
-      "JPY",
-      "CAD",
-      "AUD",
-      "CHF",
-      "CNY",
-      "INR",
-    ];
-    if (!allowed.includes(currency.toUpperCase())) {
+    const normalizedCurrency = currency.toUpperCase();
+    if (!SUPPORTED_CURRENCIES.includes(normalizedCurrency as never)) {
       throw new BadRequestException(
-        `Unsupported currency. Allowed: ${allowed.join(", ")}`,
+        `Unsupported currency. Allowed: ${SUPPORTED_CURRENCIES.join(", ")}`,
       );
     }
 
     return this.prisma.user.update({
       where: { id: userId },
-      data: { currency: currency.toUpperCase() },
+      data: { currency: normalizedCurrency },
       select: {
         id: true,
         email: true,
@@ -251,5 +274,57 @@ export class AuthService {
         createdAt: true,
       },
     });
+  }
+
+  private toPublicUser(user: UserRecord): PublicUser {
+    return {
+      id: user.id,
+      email: user.email,
+      currency: user.currency as PublicUser["currency"],
+      budgetLimit: user.budgetLimit,
+      createdAt: user.createdAt,
+    };
+  }
+
+  private async buildAuthSession(user: UserRecord): Promise<AuthSession> {
+    const tokens = await this.createTokens(user.id, user.email);
+
+    return {
+      user: this.toPublicUser(user),
+      ...tokens,
+    };
+  }
+
+  private async createTokens(userId: string, email: string) {
+    const [token, refreshToken] = await Promise.all([
+      this.jwtService.signAsync({ sub: userId, email, type: "access" }),
+      this.jwtService.signAsync(
+        { sub: userId, email, type: "refresh" },
+        {
+          secret: this.getRefreshSecret(),
+          expiresIn: this.getRefreshExpiresIn(),
+        },
+      ),
+    ]);
+
+    return {
+      token,
+      refreshToken,
+      tokenExpiresIn:
+        this.configService.get<string>("JWT_EXPIRES_IN") ?? "7d",
+      refreshTokenExpiresIn: this.getRefreshExpiresIn(),
+    };
+  }
+
+  private getRefreshSecret(): string {
+    return (
+      this.configService.get<string>("JWT_REFRESH_SECRET") ??
+      this.configService.get<string>("JWT_SECRET") ??
+      ""
+    );
+  }
+
+  private getRefreshExpiresIn(): string {
+    return this.configService.get<string>("JWT_REFRESH_EXPIRES_IN") ?? "30d";
   }
 }

@@ -1,22 +1,16 @@
 import { Controller, Post, UseGuards } from "@nestjs/common";
-import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
-import { CurrentUser } from "../auth/decorators/current-user.decorator";
-import type { AuthenticatedUser } from "../auth/interfaces/authenticated-user.interface";
+import { Throttle } from "@nestjs/throttler";
+import { InternalJobGuard } from "../common/guards/internal-job.guard";
 import { EmailSchedulerService } from "./email-scheduler.service";
 
 @Controller("notifications")
 export class NotificationsEmailController {
-  constructor(private scheduler: EmailSchedulerService) {}
+  constructor(private readonly scheduler: EmailSchedulerService) {}
 
-  /**
-   * POST /notifications/trigger-reminders
-   * Manually fires the daily charge-reminder job.
-   * Useful for testing without waiting for the cron window.
-   */
+  @Throttle({ global: { limit: 3, ttl: 60000 } })
   @Post("trigger-reminders")
-  @UseGuards(JwtAuthGuard)
-  async triggerReminders(@CurrentUser() user: AuthenticatedUser) {
-    void user;
+  @UseGuards(InternalJobGuard)
+  async triggerReminders() {
     return this.scheduler.triggerRemindersNow();
   }
 }

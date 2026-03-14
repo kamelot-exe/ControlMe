@@ -1,15 +1,25 @@
-import {
-  Injectable,
-  NotFoundException,
-  ForbiddenException,
-} from "@nestjs/common";
+import { Injectable, NotFoundException } from "@nestjs/common";
+import type { Prisma } from "@prisma/client";
+import type {
+  Subscription,
+  SubscriptionOverview,
+  UpcomingCharge,
+} from "@/shared/types";
+import { CacheService } from "../cache/cache.service";
+import { buildPaginatedResponse } from "../common/utils/pagination.util";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateSubscriptionDto } from "./dto/create-subscription.dto";
+import { ListSubscriptionsQueryDto } from "./dto/list-subscriptions-query.dto";
 import { UpdateSubscriptionDto } from "./dto/update-subscription.dto";
+
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 @Injectable()
 export class SubscriptionsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cacheService: CacheService,
+  ) {}
 
   private resolveCategory(
     category?: string | null,
@@ -36,6 +46,7 @@ export class SubscriptionsService {
         serviceGroup: dto.serviceGroup || null,
         needScore: dto.needScore ?? 70,
         websiteUrl: dto.websiteUrl || null,
+        notes: dto.notes || null,
         nextChargeDate: new Date(dto.nextChargeDate),
       },
       include: {
@@ -43,10 +54,8 @@ export class SubscriptionsService {
       },
     });
 
-    return {
-      ...subscription,
-      price: Number(subscription.price),
-    };
+    await this.invalidateUserCaches(userId);
+    return this.mapSubscription(subscription);
   }
 
   async findAll(userId: string) {
@@ -60,15 +69,115 @@ export class SubscriptionsService {
       },
     });
 
-    return subscriptions.map((sub) => ({
-      ...sub,
-      price: Number(sub.price),
-    }));
+    return subscriptions.map((subscription) => this.mapSubscription(subscription));
+  }
+
+  async findPage(userId: string, query: ListSubscriptionsQueryDto) {
+    const cacheKey = `subscriptions:${userId}:list:${JSON.stringify(query)}`;
+
+    const { value } = await this.cacheService.wrap(cacheKey, 60, async () => {
+      const where = this.buildWhereClause(userId, query);
+      const orderBy: Prisma.SubscriptionOrderByWithRelationInput = {
+        [query.sortBy ?? "nextChargeDate"]: query.sortOrder ?? "asc",
+      };
+
+      const [total, subscriptions] = await this.prisma.$transaction([
+        this.prisma.subscription.count({ where }),
+        this.prisma.subscription.findMany({
+          where,
+          include: { usage: true },
+          orderBy,
+          skip: query.skip,
+          take: query.pageSize,
+        }),
+      ]);
+
+      return buildPaginatedResponse(
+        subscriptions.map((subscription) => this.mapSubscription(subscription)),
+        total,
+        query.page,
+        query.pageSize,
+      );
+    });
+
+    return value;
+  }
+
+  async getOverview(userId: string): Promise<SubscriptionOverview> {
+    const cacheKey = `subscriptions:${userId}:overview`;
+
+    const { value } = await this.cacheService.wrap(cacheKey, 60, async () => {
+      const subscriptions = await this.prisma.subscription.findMany({
+        where: { userId },
+        include: { usage: true },
+        orderBy: { nextChargeDate: "asc" },
+      });
+
+      const now = new Date();
+      const upcomingCutoff = new Date(now.getTime() + THIRTY_DAYS_MS);
+      const inactiveCutoff = new Date(now.getTime() - THIRTY_DAYS_MS);
+
+      let totalMonthlyCost = 0;
+      let activeSubscriptions = 0;
+      let inactiveCandidates = 0;
+      const upcomingCharges: UpcomingCharge[] = [];
+
+      for (const subscription of subscriptions) {
+        const monthlyCost = this.toMonthlyCost(subscription);
+        if (subscription.isActive) {
+          totalMonthlyCost += monthlyCost;
+          activeSubscriptions++;
+        }
+
+        const lastUsed =
+          subscription.usage?.lastConfirmedUseAt ?? subscription.createdAt;
+        if (
+          (subscription.needScore ?? 70) < 45 ||
+          (lastUsed !== null && lastUsed <= inactiveCutoff)
+        ) {
+          inactiveCandidates++;
+        }
+
+        if (
+          subscription.isActive &&
+          subscription.nextChargeDate >= now &&
+          subscription.nextChargeDate <= upcomingCutoff
+        ) {
+          upcomingCharges.push({
+            subscriptionId: subscription.id,
+            name: subscription.name,
+            amount: Number(subscription.price),
+            billingPeriod: subscription.billingPeriod as UpcomingCharge["billingPeriod"],
+            nextChargeDate: subscription.nextChargeDate,
+            daysUntil: Math.max(
+              0,
+              Math.ceil(
+                (subscription.nextChargeDate.getTime() - now.getTime()) /
+                  (24 * 60 * 60 * 1000),
+              ),
+            ),
+          });
+        }
+      }
+
+      return {
+        totalSubscriptions: subscriptions.length,
+        activeSubscriptions,
+        totalMonthlyCost: Number(totalMonthlyCost.toFixed(2)),
+        upcomingCharges: upcomingCharges.slice(0, 5),
+        inactiveCandidates,
+      };
+    });
+
+    return value;
   }
 
   async findOne(id: string, userId: string) {
-    const subscription = await this.prisma.subscription.findUnique({
-      where: { id },
+    const subscription = await this.prisma.subscription.findFirst({
+      where: {
+        id,
+        userId,
+      },
       include: {
         usage: true,
       },
@@ -78,27 +187,27 @@ export class SubscriptionsService {
       throw new NotFoundException("Subscription not found");
     }
 
-    if (subscription.userId !== userId) {
-      throw new ForbiddenException("Access denied");
-    }
-
-    return {
-      ...subscription,
-      price: Number(subscription.price),
-    };
+    return this.mapSubscription(subscription);
   }
 
   async update(id: string, userId: string, dto: UpdateSubscriptionDto) {
-    await this.findOne(id, userId); // Check ownership
+    await this.findOne(id, userId);
 
-    const updateData: any = { ...dto };
-    if (dto.nextChargeDate) {
+    const updateData: Prisma.SubscriptionUpdateInput = {};
+
+    if (dto.name !== undefined) {
+      updateData.name = dto.name;
+    }
+    if (dto.price !== undefined) {
+      updateData.price = dto.price;
+    }
+    if (dto.billingPeriod !== undefined) {
+      updateData.billingPeriod = dto.billingPeriod;
+    }
+    if (dto.nextChargeDate !== undefined) {
       updateData.nextChargeDate = new Date(dto.nextChargeDate);
     }
-    if (dto.websiteUrl !== undefined) {
-      updateData.websiteUrl = dto.websiteUrl || null;
-    }
-    if (dto.category !== undefined) {
+    if (dto.category !== undefined || dto.serviceGroup !== undefined) {
       updateData.category = this.resolveCategory(
         dto.category,
         dto.serviceGroup,
@@ -106,15 +215,18 @@ export class SubscriptionsService {
     }
     if (dto.serviceGroup !== undefined) {
       updateData.serviceGroup = dto.serviceGroup || null;
-      if (
-        dto.category === undefined ||
-        ["General", "Subscription"].includes(dto.category)
-      ) {
-        updateData.category = dto.serviceGroup || "Subscription";
-      }
     }
     if (dto.needScore !== undefined) {
       updateData.needScore = dto.needScore;
+    }
+    if (dto.websiteUrl !== undefined) {
+      updateData.websiteUrl = dto.websiteUrl || null;
+    }
+    if (dto.notes !== undefined) {
+      updateData.notes = dto.notes || null;
+    }
+    if (dto.isActive !== undefined) {
+      updateData.isActive = dto.isActive;
     }
 
     const subscription = await this.prisma.subscription.update({
@@ -125,28 +237,34 @@ export class SubscriptionsService {
       },
     });
 
-    return {
-      ...subscription,
-      price: Number(subscription.price),
-    };
+    await this.invalidateUserCaches(userId);
+    return this.mapSubscription(subscription);
   }
 
   async remove(id: string, userId: string) {
-    await this.findOne(id, userId); // Check ownership
+    await this.findOne(id, userId);
 
-    return this.prisma.subscription.delete({
+    const deleted = await this.prisma.subscription.delete({
       where: { id },
     });
+
+    await this.invalidateUserCaches(userId);
+    return {
+      id: deleted.id,
+      success: true,
+    };
   }
 
   async importFromCsv(userId: string, csvContent: string) {
     const lines = csvContent.trim().split("\n");
-    if (lines.length < 2) return { imported: 0, errors: ["Empty CSV"] };
+    if (lines.length < 2) {
+      return { imported: 0, errors: ["Empty CSV"] };
+    }
 
     const headers = lines[0]
       .toLowerCase()
       .split(",")
-      .map((h) => h.trim());
+      .map((header) => header.trim());
     const nameIdx = headers.indexOf("name");
     const priceIdx = headers.indexOf("price");
     const periodIdx = headers.indexOf("billingperiod");
@@ -160,17 +278,19 @@ export class SubscriptionsService {
     let imported = 0;
     const errors: string[] = [];
 
-    for (let i = 1; i < lines.length; i++) {
-      const cols = lines[i]
+    for (let index = 1; index < lines.length; index++) {
+      const cols = lines[index]
         .split(",")
-        .map((c) => c.trim().replace(/^"|"$/g, ""));
-      if (cols.every((c) => !c)) continue;
+        .map((column) => column.trim().replace(/^"|"$/g, ""));
+      if (cols.every((column) => !column)) {
+        continue;
+      }
 
       try {
         const name = cols[nameIdx];
-        const price = parseFloat(cols[priceIdx]);
-        if (!name || isNaN(price)) {
-          errors.push(`Row ${i}: invalid name or price`);
+        const price = Number.parseFloat(cols[priceIdx]);
+        if (!name || Number.isNaN(price)) {
+          errors.push(`Row ${index}: invalid name or price`);
           continue;
         }
 
@@ -184,7 +304,7 @@ export class SubscriptionsService {
           dateIdx !== -1 && cols[dateIdx]
             ? new Date(cols[dateIdx])
             : new Date();
-        const nextChargeDate = isNaN(parsedDate.getTime())
+        const nextChargeDate = Number.isNaN(parsedDate.getTime())
           ? new Date()
           : parsedDate;
 
@@ -202,13 +322,76 @@ export class SubscriptionsService {
           },
         });
         imported++;
-      } catch (e) {
+      } catch (error) {
         errors.push(
-          `Row ${i}: ${e instanceof Error ? e.message : "unknown error"}`,
+          `Row ${index}: ${error instanceof Error ? error.message : "unknown error"}`,
         );
       }
     }
 
+    await this.invalidateUserCaches(userId);
     return { imported, errors };
+  }
+
+  private buildWhereClause(
+    userId: string,
+    query: ListSubscriptionsQueryDto,
+  ): Prisma.SubscriptionWhereInput {
+    const where: Prisma.SubscriptionWhereInput = {
+      userId,
+      ...(query.search
+        ? {
+            OR: [
+              { name: { contains: query.search, mode: "insensitive" } },
+              { category: { contains: query.search, mode: "insensitive" } },
+              { serviceGroup: { contains: query.search, mode: "insensitive" } },
+            ],
+          }
+        : {}),
+      ...(query.category ? { category: query.category } : {}),
+      ...(query.billingPeriod ? { billingPeriod: query.billingPeriod } : {}),
+      ...(query.isActive !== undefined ? { isActive: query.isActive } : {}),
+    };
+
+    if (query.upcomingWithinDays !== undefined) {
+      const now = new Date();
+      const cutoff = new Date(
+        now.getTime() + query.upcomingWithinDays * 24 * 60 * 60 * 1000,
+      );
+      where.nextChargeDate = {
+        gte: now,
+        lte: cutoff,
+      };
+    }
+
+    return where;
+  }
+
+  private mapSubscription<T extends { price: Prisma.Decimal }>(
+    subscription: T,
+  ): T & Subscription {
+    return {
+      ...subscription,
+      price: Number(subscription.price),
+    } as T & Subscription;
+  }
+
+  private toMonthlyCost(subscription: { billingPeriod: string; price: Prisma.Decimal }) {
+    if (subscription.billingPeriod === "DAILY") {
+      return Number(subscription.price) * 30;
+    }
+    if (subscription.billingPeriod === "YEARLY") {
+      return Number(subscription.price) / 12;
+    }
+    return Number(subscription.price);
+  }
+
+  private async invalidateUserCaches(userId: string) {
+    await Promise.all([
+      this.cacheService.invalidatePrefix(`subscriptions:${userId}:`),
+      this.cacheService.invalidatePrefix(`analytics:${userId}:`),
+      this.cacheService.invalidatePrefix(`notifications:${userId}:`),
+      this.cacheService.invalidatePrefix(`export:${userId}:`),
+    ]);
   }
 }
