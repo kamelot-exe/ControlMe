@@ -34,6 +34,14 @@ export class NotificationsService {
         userId,
         prechargeReminderDays: 1,
         smartAlertsEnabled: true,
+        renewalEmailsEnabled: true,
+        unusedEmailsEnabled: false,
+        weeklyDigestEnabled: true,
+        monthlyDigestEnabled: true,
+        weeklyDigestDay: 1,
+        monthlyDigestDay: 1,
+        digestTime: "08:00",
+        timeZone: "UTC",
       },
     });
   }

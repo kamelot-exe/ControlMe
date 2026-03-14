@@ -20,6 +20,7 @@ model User {
 
   subscriptions        Subscription[]
   notificationSettings NotificationSettings?
+  notificationDeliveries NotificationDelivery[]
 
   @@map("users")
 }
@@ -42,6 +43,7 @@ model Subscription {
 
   user  User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   usage SubscriptionUsage?
+  notificationDeliveries NotificationDelivery[]
 
   @@map("subscriptions")
 }
@@ -61,10 +63,41 @@ model NotificationSettings {
   userId                String  @unique @map("user_id")
   prechargeReminderDays Int     @default(1) @map("precharge_reminder_days")
   smartAlertsEnabled    Boolean @default(true) @map("smart_alerts_enabled")
+  renewalEmailsEnabled  Boolean @default(true) @map("renewal_emails_enabled")
+  unusedEmailsEnabled   Boolean @default(false) @map("unused_emails_enabled")
+  weeklyDigestEnabled   Boolean @default(true) @map("weekly_digest_enabled")
+  monthlyDigestEnabled  Boolean @default(true) @map("monthly_digest_enabled")
+  weeklyDigestDay       Int     @default(1) @map("weekly_digest_day")
+  monthlyDigestDay      Int     @default(1) @map("monthly_digest_day")
+  digestTime            String? @map("digest_time")
+  timeZone              String? @default("UTC") @map("time_zone")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("notification_settings")
+}
+
+model NotificationDelivery {
+  id             String    @id @default(uuid())
+  userId         String    @map("user_id")
+  subscriptionId String?   @map("subscription_id")
+  type           String
+  dedupeKey      String    @unique @map("dedupe_key")
+  scheduledFor   DateTime? @map("scheduled_for")
+  sentAt         DateTime? @map("sent_at")
+  status         String
+  attemptCount   Int       @default(0) @map("attempt_count")
+  lastAttemptAt  DateTime? @map("last_attempt_at")
+  lastError      String?   @map("last_error")
+  payload        Json?
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type], map: "notification_delivery_user_type_idx")
+  @@index([subscriptionId], map: "notification_delivery_subscription_idx")
+  @@map("notification_delivery")
 }
 
 model ServiceCatalogEntry {

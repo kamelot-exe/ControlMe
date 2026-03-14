@@ -1,21 +1,39 @@
+import { BullModule } from "@nestjs/bullmq";
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { PrismaModule } from "../prisma/prisma.module";
+import { EmailSchedulerService } from "./email-scheduler.service";
+import { EmailService } from "./email.service";
+import { NotificationDeliveryService } from "./notification-delivery.service";
+import { NotificationEmailProcessor } from "./notification-email.processor";
+import { NotificationsEmailController } from "./notifications-email.controller";
+import { NotificationQueueService } from "./notification-queue.service";
+import { NOTIFICATIONS_QUEUE } from "./notification-queue.types";
+import { NotificationSettingsController } from "./notification-settings.controller";
 import { NotificationsController } from "./notifications.controller";
 import { NotificationsService } from "./notifications.service";
-import { NotificationSettingsController } from "./notification-settings.controller";
-import { EmailService } from "./email.service";
-import { EmailSchedulerService } from "./email-scheduler.service";
-import { NotificationsEmailController } from "./notifications-email.controller";
 
 @Module({
-  imports: [PrismaModule, ConfigModule],
+  imports: [
+    PrismaModule,
+    ConfigModule,
+    BullModule.registerQueue({
+      name: NOTIFICATIONS_QUEUE,
+    }),
+  ],
   controllers: [
     NotificationsController,
     NotificationSettingsController,
     NotificationsEmailController,
   ],
-  providers: [NotificationsService, EmailService, EmailSchedulerService],
-  exports: [EmailService],
+  providers: [
+    NotificationsService,
+    EmailService,
+    EmailSchedulerService,
+    NotificationDeliveryService,
+    NotificationQueueService,
+    NotificationEmailProcessor,
+  ],
+  exports: [EmailService, NotificationDeliveryService, NotificationQueueService],
 })
 export class NotificationsModule {}
